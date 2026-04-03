@@ -1,10 +1,10 @@
 """
 SOCentinel — Ollama LLM Client.
-Wrapper around local Ollama instance for offline/local inference.
-Used as secondary model for Dual-LLM Shield validation.
+Simple wrapper for local Ollama instance (phi4-mini for log structuring).
 """
 
 import os
+import requests
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -12,26 +12,25 @@ load_dotenv()
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
 
-class OllamaClient:
-    """Ollama local LLM client."""
+def call_ollama(prompt: str, model: str = "phi4-mini") -> str | None:
+    """
+    Call local Ollama instance for inference.
 
-    def __init__(self, model: str = "llama3", base_url: str = None):
-        self.model = model
-        self.base_url = base_url or OLLAMA_BASE_URL
+    Args:
+        prompt: The prompt to send.
+        model: Ollama model name.
 
-    async def chat(self, messages: list, temperature: float = 0.1) -> str:
-        """
-        Send a chat request to local Ollama instance.
-
-        Args:
-            messages: List of message dicts (role, content).
-            temperature: Sampling temperature.
-
-        Returns:
-            Response text string.
-        """
-        pass
-
-    async def is_available(self) -> bool:
-        """Check if the Ollama instance is running."""
-        pass
+    Returns:
+        Response text string, or None on failure.
+    """
+    try:
+        resp = requests.post(
+            f"{OLLAMA_BASE_URL}/api/generate",
+            json={"model": model, "prompt": prompt, "stream": False},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json().get("response", None)
+    except Exception as e:
+        print(f"[ollama_client] Error: {e}")
+        return None

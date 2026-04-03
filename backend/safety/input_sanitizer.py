@@ -1,33 +1,33 @@
 """
 SOCentinel — Input Sanitizer.
-Validates and sanitizes all user inputs before they reach the LLM.
-Strips injection attempts, enforces length limits, validates format.
+Checks for prompt injection patterns and truncates input.
 """
+
+import re
 
 
 class InputSanitizer:
-    """Sanitize user inputs to prevent prompt injection and malformed data."""
+    """Sanitize raw log text before it reaches any LLM."""
 
-    def sanitize(self, user_input: str) -> str:
+    INJECTION_PATTERNS = [
+        r"ignore.*instructions",
+        r"you are now",
+        r"act as",
+        r"system prompt",
+        r"forget everything",
+        r"jailbreak",
+    ]
+    MAX_LENGTH = 1000
+
+    def sanitize(self, raw_log: str) -> str:
         """
-        Clean and validate user input.
+        Check for injection patterns and truncate.
 
-        Args:
-            user_input: Raw input string from user.
-
-        Returns:
-            Sanitized input string.
+        Returns '[REDACTED-INJECTION]' if injection detected,
+        otherwise returns truncated string.
         """
-        pass
-
-    def detect_injection(self, text: str) -> bool:
-        """
-        Check if input contains prompt injection patterns.
-
-        Args:
-            text: Input text to check.
-
-        Returns:
-            True if injection detected, False otherwise.
-        """
-        pass
+        for pattern in self.INJECTION_PATTERNS:
+            if re.search(pattern, raw_log, re.IGNORECASE):
+                print(f"[input_sanitizer] Injection detected: {pattern}")
+                return "[REDACTED-INJECTION]"
+        return raw_log[:self.MAX_LENGTH]

@@ -1,38 +1,51 @@
 """
 SOCentinel — Dual-LLM Shield.
-Uses a secondary LLM to validate the primary LLM's inputs and outputs.
-Checks for: prompt injection, hallucination indicators, unsafe content.
-Key differentiator: defense-in-depth for AI safety.
+LLM-1 (Ollama/phi4-mini) structures raw logs into JSON.
+LLM-2 (Groq) never sees raw log text — only structured data.
 """
+
+import json
+from safety.input_sanitizer import InputSanitizer
+from llm.ollama_client import call_ollama
 
 
 class DualLLMShield:
-    """Two-model validation: secondary model gates primary model."""
+    """Two-model pipeline: sanitize → structure via LLM-1 → feed to LLM-2."""
 
-    def __init__(self, validator_model: str = "llama-guard"):
-        self.validator_model = validator_model
+    def __init__(self):
+        self.sanitizer = InputSanitizer()
 
-    async def validate_input(self, prompt: str) -> dict:
+    def process(self, raw_log: str) -> dict:
         """
-        Run input through secondary LLM for safety check.
+        Sanitize raw log, then structure via Ollama (LLM-1).
 
-        Args:
-            prompt: The prompt about to be sent to the primary LLM.
-
-        Returns:
-            dict with 'safe' (bool), 'reason' (str), 'risk_score' (float).
+        Returns structured dict. Falls back to sanitized text
+        as details field if Ollama is unavailable or fails.
         """
-        pass
+        sanitized = self.sanitizer.sanitize(raw_log)
 
-    async def validate_output(self, response: str, context: dict) -> dict:
-        """
-        Run primary LLM output through secondary LLM for validation.
+        if sanitized == "[REDACTED-INJECTION]":
+            return {"details": sanitized, "event_type": "injection_attempt"}
 
-        Args:
-            response: The primary LLM's response.
-            context: Original context/evidence for grounding check.
+        prompt = (
+            "You are a log parser. Convert this log line to JSON with these fields: "
+            "event_type, user_id, src_ip, dst_ip, hostname, timestamp, details. "
+            "Return ONLY valid JSON, no explanation.\n\n"
+            f"Log: {sanitized}"
+        )
 
-        Returns:
-            dict with 'safe' (bool), 'reason' (str), 'hallucination_score' (float).
-        """
-        pass
+        response = call_ollama(prompt, model="phi4-mini")
+
+        if not response:
+            print("[dual_llm_shield] Ollama unavailable, using fallback")
+            return {"details": sanitized}
+
+        try:
+            # Strip any markdown fences
+            cleaned = response.strip().strip("`").strip()
+            if cleaned.startswith("json"):
+                cleaned = cleaned[4:].strip()
+            return json.loads(cleaned)
+        except (json.JSONDecodeError, ValueError):
+            print("[dual_llm_shield] JSON parse failed, using fallback")
+            return {"details": sanitized}

@@ -1,28 +1,64 @@
 """
-SOCentinel — Orchestrator Agent.
-LangGraph state machine that coordinates triage → forensics → response flow.
-Routes alerts through the agent pipeline based on severity and context.
+SOCentinel — Orchestrator.
+Sequential agent pipeline: triage → forensics → response.
+No LangGraph — just simple function calls with timing.
 """
 
+import json
+import time
+from db import get_connection
+from agents.triage_agent import TriageAgent
+from agents.forensics_agent import ForensicsAgent
+from agents.responder_agent import ResponderAgent
 
-class OrchestratorAgent:
-    """Main agent that coordinates the triage-forensics-response pipeline."""
 
-    def __init__(self):
-        self.graph = None  # LangGraph StateGraph, built in Phase 2
+def run_full_investigation(alert_id: str) -> dict:
+    """
+    Run the complete investigation pipeline on an alert.
+    Returns combined result with timing data.
+    """
+    steps = []
 
-    async def build_graph(self):
-        """Build the LangGraph state machine for alert processing."""
-        pass
+    # Step 1: Triage
+    t0 = time.time()
+    triage = TriageAgent().run(alert_id)
+    steps.append({"agent": "triage", "status": "done", "seconds": round(time.time() - t0, 2)})
 
-    async def process_alert(self, alert_id: str) -> dict:
-        """
-        Run full agent pipeline on an alert.
+    # Step 2: Forensics
+    t0 = time.time()
+    forensics = ForensicsAgent().run(alert_id, triage)
+    steps.append({"agent": "forensics", "status": "done", "seconds": round(time.time() - t0, 2)})
 
-        Args:
-            alert_id: The alert to process.
+    # Step 3: Response
+    t0 = time.time()
+    response = ResponderAgent().run(alert_id, triage, forensics)
+    steps.append({"agent": "responder", "status": "done", "seconds": round(time.time() - t0, 2)})
 
-        Returns:
-            dict with triage result, timeline, attack map, and action suggestions.
-        """
-        pass
+    # Save result to alerts table
+    try:
+        conn = get_connection()
+        combined = json.dumps({
+            "triage": triage,
+            "forensics": forensics,
+            "response": response,
+        }, default=str)
+        conn.execute(
+            "UPDATE alerts SET status = 'triaging' WHERE id = ?",
+            (alert_id,),
+        )
+        # Store triage result in raw_log as JSON (reusing column for demo)
+        conn.execute(
+            "UPDATE alerts SET ocsf_category = ? WHERE id = ?",
+            (combined, alert_id),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[orchestrator] Error saving result: {e}")
+
+    return {
+        "triage": triage,
+        "forensics": forensics,
+        "response": response,
+        "steps": steps,
+    }

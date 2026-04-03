@@ -1,58 +1,33 @@
 """
-SOCentinel — Bounded Autonomy System.
-Enforces action tiers:
-  Tier 0: Auto-execute (e.g. phone verification lookup)
-  Tier 1: One-click approval (e.g. soft lock account, block IP)
-  Tier 2: MFA required (e.g. isolate host on critical asset)
-
-Actions never exceed the asset's autonomy_tier without escalation.
+SOCentinel — Bounded Autonomy.
+Classifies action tiers based on asset type and confidence.
 """
 
 
 class BoundedAutonomy:
     """Enforce tiered autonomy constraints on response actions."""
 
-    TIER_LABELS = {
-        0: "auto",
-        1: "one-click",
-        2: "mfa-required",
+    TIER_2_ASSET_TYPES = {"domain_controller", "finance_server", "hr_server", "pki_server"}
+
+    TIER_0_ACTIONS = {
+        "ip_reputation_lookup",
+        "user_profile_lookup",
+        "asset_lookup",
+        "similar_case_search",
     }
 
-    def check_permission(self, action_tier: int, asset_tier: int) -> dict:
+    def classify(self, action_id: str, asset_type: str, confidence: int) -> int:
         """
-        Check if an action is permitted given the asset's autonomy tier.
+        Classify an action into tier 0, 1, or 2.
 
-        Args:
-            action_tier: The tier of the proposed action.
-            asset_tier: The autonomy tier of the target asset.
-
-        Returns:
-            dict with 'allowed' (bool), 'requires' (str), 'reason' (str).
+        - TIER_2_ASSET_TYPES always return 2
+        - TIER_0_ACTIONS always return 0
+        - confidence > 85 → tier 1, else tier 2
         """
-        pass
-
-    def request_approval(self, action_id: str, tier: int) -> dict:
-        """
-        Create an approval request for a human analyst.
-
-        Args:
-            action_id: Action requiring approval.
-            tier: Required approval tier.
-
-        Returns:
-            Approval request dict.
-        """
-        pass
-
-    def verify_mfa(self, action_id: str, mfa_token: str) -> dict:
-        """
-        Verify MFA token for tier-2 actions.
-
-        Args:
-            action_id: Action being confirmed.
-            mfa_token: MFA token from analyst.
-
-        Returns:
-            dict with 'verified' (bool), 'reason' (str).
-        """
-        pass
+        if asset_type in self.TIER_2_ASSET_TYPES:
+            return 2
+        if action_id in self.TIER_0_ACTIONS:
+            return 0
+        if confidence > 85:
+            return 1
+        return 2

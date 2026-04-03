@@ -3,48 +3,48 @@
     "technique_id": "T1110",
     "technique_name": "Brute Force",
     "tactic": "Credential Access",
-    "kill_chain_stage": "weaponization"
+    "kill_chain_stage": "Initial Access"
   },
   "login_success_after_failures": {
     "technique_id": "T1078",
     "technique_name": "Valid Accounts",
     "tactic": "Defense Evasion",
-    "kill_chain_stage": "exploitation"
-  },
-  "large_file_download": {
-    "technique_id": "T1041",
-    "technique_name": "Exfiltration Over C2 Channel",
-    "tactic": "Exfiltration",
-    "kill_chain_stage": "actions_on_objectives"
-  },
-  "process_exec_unusual_parent": {
-    "technique_id": "T1059",
-    "technique_name": "Command and Scripting Interpreter",
-    "tactic": "Execution",
-    "kill_chain_stage": "installation"
-  },
-  "lateral_movement_smb": {
-    "technique_id": "T1021.002",
-    "technique_name": "Remote Services: SMB/Windows Admin Shares",
-    "tactic": "Lateral Movement",
-    "kill_chain_stage": "lateral_movement"
+    "kill_chain_stage": "Initial Access"
   },
   "file_access": {
     "technique_id": "T1083",
     "technique_name": "File and Directory Discovery",
     "tactic": "Discovery",
-    "kill_chain_stage": "exploration"
-  },
-  "access_denied": {
-    "technique_id": "T1083",
-    "technique_name": "File and Directory Discovery",
-    "tactic": "Discovery",
-    "kill_chain_stage": "exploration"
+    "kill_chain_stage": "Collection"
   },
   "file_download": {
-    "technique_id": "T1005",
-    "technique_name": "Data from Local System",
+    "technique_id": "T1560",
+    "technique_name": "Archive Collected Data",
     "tactic": "Collection",
-    "kill_chain_stage": "actions_on_objectives"
+    "kill_chain_stage": "Collection"
+  },
+  "access_denied": {
+    "technique_id": "T1021",
+    "technique_name": "Remote Services",
+    "tactic": "Lateral Movement",
+    "kill_chain_stage": "Lateral Movement"
+  },
+  "large_file_download": {
+    "technique_id": "T1560",
+    "technique_name": "Archive Collected Data",
+    "tactic": "Collection",
+    "kill_chain_stage": "Collection"
+  },
+  "process_exec_unusual_parent": {
+    "technique_id": "T1059",
+    "technique_name": "Command and Scripting Interpreter",
+    "tactic": "Execution",
+    "kill_chain_stage": "Execution"
+  },
+  "lateral_movement_smb": {
+    "technique_id": "T1021.002",
+    "technique_name": "SMB/Windows Admin Shares",
+    "tactic": "Lateral Movement",
+    "kill_chain_stage": "Lateral Movement"
   }
 }

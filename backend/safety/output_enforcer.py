@@ -1,34 +1,39 @@
 """
 SOCentinel — Output Enforcer.
-Ensures all AI outputs conform to expected schemas and safety constraints.
-Strips any content that violates output policies.
+Parses LLM output as JSON, returns safe fallback on failure.
 """
+
+import json
+import re
 
 
 class OutputEnforcer:
-    """Enforce output format and safety constraints on AI responses."""
+    """Enforce structured JSON output from LLM responses."""
 
-    def enforce(self, output: dict, schema: str = "triage") -> dict:
+    SAFE_FALLBACK = {
+        "error": "AI analysis unavailable",
+        "severity": "UNKNOWN",
+        "confidence": 0,
+        "narrative": "Manual investigation required",
+        "evidence_for_threat": [],
+        "evidence_against_threat": [],
+        "recommended_actions": [],
+    }
+
+    def enforce(self, raw_llm_text: str) -> dict:
         """
-        Validate and enforce output schema compliance.
-
-        Args:
-            output: Raw AI output dict.
-            schema: Expected output schema name.
-
-        Returns:
-            Enforced output dict (non-compliant fields stripped).
+        Parse LLM text as JSON. Returns safe fallback on failure.
+        Strips markdown code fences before parsing.
         """
-        pass
+        if not raw_llm_text:
+            return dict(self.SAFE_FALLBACK)
 
-    def redact_sensitive(self, text: str) -> str:
-        """
-        Redact any sensitive data that shouldn't appear in outputs.
+        # Strip markdown code fences
+        cleaned = re.sub(r"```(?:json)?\s*", "", raw_llm_text)
+        cleaned = re.sub(r"```\s*$", "", cleaned).strip()
 
-        Args:
-            text: Output text to scan.
-
-        Returns:
-            Redacted text.
-        """
-        pass
+        try:
+            return json.loads(cleaned)
+        except (json.JSONDecodeError, ValueError) as e:
+            print(f"[output_enforcer] JSON parse failed: {e}")
+            return dict(self.SAFE_FALLBACK)
