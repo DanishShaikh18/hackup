@@ -1,41 +1,100 @@
-import AlertQueue from './components/AlertQueue';
-import TriageCard from './components/TriageCard';
-import AgentPanel from './components/AgentPanel';
-import Timeline from './components/Timeline';
-import AttackMap from './components/AttackMap';
-import ActionPanel from './components/ActionPanel';
-import MFAGateModal from './components/MFAGateModal';
-import SimilarCases from './components/SimilarCases';
-import CaseBuilder from './components/CaseBuilder';
-import CISOReport from './components/CISOReport';
-import NLQueryBar from './components/NLQueryBar';
+import { useState } from 'react';
+import ChatPanel from './components/ChatPanel';
+import EvidenceTable from './components/EvidenceTable';
+import MathBox from './components/MathBox';
+import KillChainTimeline from './components/KillChainTimeline';
+import SOARButton from './components/SOARButton';
+
+const API = 'http://localhost:8000';
 
 export default function App() {
+  const [analysisData, setAnalysisData] = useState(null);
+  const [analyzing, setAnalyzing] = useState(false);
+
+  const runAnalysis = async () => {
+    setAnalyzing(true);
+    try {
+      const res = await fetch(`${API}/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ asset_value: 3 }),
+      });
+      const data = await res.json();
+      setAnalysisData(data);
+    } catch {
+      console.error('Failed to reach backend.');
+    }
+    setAnalyzing(false);
+  };
+
+  // Get the top threat for MathBox + KillChain
+  const topThreat = analysisData?.threats?.length
+    ? analysisData.threats.reduce((a, b) =>
+        a.risk_score.score > b.risk_score.score ? a : b
+      )
+    : null;
+
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-base)' }}>
-      <header style={{
-        padding: '1rem 2rem',
-        borderBottom: '1px solid var(--border)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.75rem'
-      }}>
-        <span style={{ fontSize: '1.5rem' }}>🛡️</span>
-        <h1 style={{
-          fontSize: '1.25rem',
-          fontWeight: 600,
-          color: 'var(--accent-gold)'
-        }}>SOCentinel</h1>
-        <span style={{
-          fontSize: '0.75rem',
-          color: 'var(--text-muted)',
-          marginLeft: 'auto'
-        }}>AI-Driven SOC Co-Pilot</span>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      {/* Header */}
+      <header className="app-header">
+        <span className="app-header__logo">🛡️</span>
+        <h1 className="app-header__title">SOCentinel</h1>
+        <span className="app-header__subtitle">Hybrid Security Reasoning Engine</span>
+        <button
+          id="analyze-btn"
+          className="app-header__analyze-btn"
+          onClick={runAnalysis}
+          disabled={analyzing}
+        >
+          {analyzing ? (
+            <><span className="loader"></span> Analyzing...</>
+          ) : (
+            <>⚡ Analyze Logs</>
+          )}
+        </button>
       </header>
-      <main style={{ padding: '1rem' }}>
-        <NLQueryBar />
-        <AlertQueue />
-      </main>
+
+      {/* Info bar when analysis is loaded */}
+      {analysisData && (
+        <div style={{ padding: '0.5rem 1rem' }}>
+          <div className="info-row">
+            <div className="info-row__item">
+              <span>📁</span> Case:
+              <span className="info-row__value">{analysisData.case_id}</span>
+            </div>
+            <div className="info-row__item">
+              <span>🔥</span> Firewall Events:
+              <span className="info-row__value">{analysisData.correlation_summary?.total_firewall_events}</span>
+            </div>
+            <div className="info-row__item">
+              <span>🔑</span> Auth Events:
+              <span className="info-row__value">{analysisData.correlation_summary?.total_auth_events}</span>
+            </div>
+            <div className="info-row__item">
+              <span>🔗</span> Correlated IPs:
+              <span className="info-row__value">{analysisData.correlation_summary?.correlated_ips}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Split Layout */}
+      <div className="split-layout">
+        {/* Left: Chat */}
+        <ChatPanel analysisData={analysisData} onAnalysisRequest={runAnalysis} />
+
+        {/* Right: Evidence Workspace */}
+        <div className="evidence-workspace">
+          <MathBox threat={topThreat} />
+          <KillChainTimeline killChain={topThreat?.kill_chain} />
+          <EvidenceTable
+            evidence={analysisData?.evidence_table}
+            correlatedIPs={analysisData?.correlation_summary?.ips}
+          />
+          <SOARButton threats={analysisData?.threats} />
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,74 +1,80 @@
-# SOCentinel 🛡️
+# SOCentinel — Hybrid Security Reasoning Engine
 
-**AI-driven SOC co-pilot that triages, investigates, and responds to security alerts with bounded autonomy and mandatory human oversight.**
+A SOC (Security Operations Center) co-pilot that combines **deterministic risk scoring** with **grounded AI narration** to investigate security threats across multi-source log data.
 
----
+## Architecture
 
-## Phase Status
+```
+┌─────────────────────────────────────────────────────┐
+│                    Frontend (React)                  │
+│  ┌──────────────┐  ┌─────────────────────────────┐  │
+│  │  Chat Panel   │  │   Evidence Workspace        │  │
+│  │  (NL queries) │  │  ┌─────────┐ ┌──────────┐  │  │
+│  │               │  │  │ MathBox │ │ KillChain│  │  │
+│  │               │  │  └─────────┘ └──────────┘  │  │
+│  │               │  │  ┌──────────────────────┐  │  │
+│  │               │  │  │   Evidence Table     │  │  │
+│  │               │  │  └──────────────────────┘  │  │
+│  │               │  │  ┌──────────────────────┐  │  │
+│  │               │  │  │   SOAR Button        │  │  │
+│  └──────────────┘  │  └──────────────────────┘  │  │
+│                     └─────────────────────────────┘  │
+└──────────────────────┬──────────────────────────────┘
+                       │ HTTP
+┌──────────────────────┴──────────────────────────────┐
+│                 FastAPI Backend                       │
+│  POST /analyze  — Full investigation pipeline        │
+│  POST /chat     — SOC Co-Pilot (NL search + chat)   │
+│  POST /remediate — SOAR IP blocking simulation      │
+├──────────────────────────────────────────────────────┤
+│  security_tools.py │ log_parser.py │ copilot.py      │
+│  (Deterministic)   │ (OCSF Parser) │ (Grounded AI)  │
+└──────────────────────────────────────────────────────┘
+```
 
-| Phase | Description | Status |
-|-------|-------------|--------|
-| 1 | Project Foundation | ✅ |
-| 2 | Backend Logic & Agents | ⬜ |
-| 3 | Frontend Dashboard | ⬜ |
-| 4 | Polish & Demo | ⬜ |
+## Key Features
 
----
+- **Multi-Source Correlation**: Links `firewall_logs.json` and `auth_logs.json` by IP
+- **OCSF Normalization**: Raw logs → OCSF-standard JSON objects
+- **Deterministic Risk Scoring**: `Score = (KillChainWeight × Confidence) + AssetValue`
+- **MITRE ATT&CK Mapping**: Event patterns → Technique IDs (T1110, T1046, etc.)
+- **Cyber Kill Chain Timeline**: Visual 7-stage attack progression
+- **False Positive Reduction**: Baseline check against known-good IPs + business hours
+- **Grounded AI Narration**: Groq LLM explains findings using the deterministic data
+- **NL Chat Interface**: "Is anyone brute-forcing our firewall?" 
+- **SOAR Simulation**: One-click IP blocking
 
-## Quick Start
+## Setup
+
+### Backend
 
 ```bash
-# 1. Clone and enter project
-cd hackup
-
-# 2. Install Python dependencies
-pip install -r requirements.txt
-
-# 3. Set up environment
-cp .env.example .env
-# Edit .env with your GROQ_API_KEY
-
-# 4. Start Qdrant (optional, for vector search)
-docker-compose up -d
-
-# 5. Seed database with demo scenario
 cd backend
-python seed_data.py
+pip install -r ../requirements.txt
+# Add your Groq API key to .env
+uvicorn main:app --reload
+```
 
-# 6. Start backend
-uvicorn main:app --reload --port 8000
+### Frontend
 
-# 7. Start frontend (separate terminal)
+```bash
 cd frontend
 npm install
 npm run dev
 ```
 
----
+## Endpoints
 
-## Key Differentiators
-
-### 1. 🎛️ Bounded Autonomy
-Every action has an autonomy tier (0–2). Tier 0 actions execute automatically. Tier 1 actions require one-click approval. Tier 2 actions demand MFA confirmation. The AI never acts beyond its allowed scope.
-
-### 2. 🛡️ Dual-LLM Shield
-All LLM inputs pass through a secondary model that checks for prompt injection, hallucination, and unsafe content before the primary model processes them. Defense in depth for AI safety.
-
-### 3. 📎 Mandatory Citations
-Every AI-generated finding includes a `grounded_by` field linking back to raw log evidence. No citation = no display. Analysts can always verify the AI's reasoning against source data.
-
----
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET`  | `/` | Health check |
+| `POST` | `/analyze` | Run full investigation (deterministic + AI) |
+| `POST` | `/chat` | Co-pilot chat / NL log search |
+| `POST` | `/remediate` | Block IP (SOAR simulation) |
 
 ## Tech Stack
 
-- **Backend**: FastAPI + LangGraph + Groq (Llama 3)
-- **Frontend**: React + Vite + Tailwind CSS
-- **Vector DB**: Qdrant
-- **Database**: SQLite (local demo)
-- **AI Safety**: Dual-LLM shield + grounding validator
-
----
-
-## Demo Scenario
-
-**Credential Stuffing Attack** — 47 failed logins from a Tor exit node at 2:28 AM, followed by a successful login to a Finance Director's account, file access to payroll data, and a 4.2 MB data exfiltration. SOCentinel triages, investigates, and recommends response actions with full evidence chains.
+- **Backend**: Python, FastAPI, Groq (Llama 3.3)
+- **Frontend**: React, Vite, Vanilla CSS
+- **Data**: JSON log files (no database)
+- **AI**: Grounded — LLM references deterministic calculations, never guesses

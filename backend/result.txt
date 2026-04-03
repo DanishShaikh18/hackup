@@ -1,0 +1,24 @@
+Case: CASE-88DE813A
+Evidence: 20 events
+IPs: ['192.168.1.100', '10.0.0.50', '203.0.113.45']
+
+IP: 192.168.1.100
+  Score: 2.5/10 (Low)
+  Formula: (0 × 0.0) + 3 = 3.0
+  MITRE: []
+  FP: True
+  Reason: IP 192.168.1.100 is in Known Good list; Activity occurred during standard business hours (09:00–18:00)
+
+IP: 10.0.0.50
+  Score: 2.5/10 (Low)
+  Formula: (0 × 0.0) + 3 = 3.0
+  MITRE: []
+  FP: True
+  Reason: IP 10.0.0.50 is in Known Good list; Activity occurred during standard business hours (09:00–18:00)
+
+IP: 203.0.113.45
+  Score: 8.3/10 (Critical)
+  Formula: (7 × 1.0) + 3 = 10.0
+  MITRE: ['T1046', 'T1190', 'T1110', 'T1078', 'T1041']
+  FP: False
+  Reason: No baseline match — activity is suspicious

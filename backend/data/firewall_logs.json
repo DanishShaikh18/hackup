@@ -1,0 +1,122 @@
+[
+  {
+    "id": "fw-001",
+    "timestamp": "2026-04-03T02:14:33Z",
+    "src_ip": "203.0.113.45",
+    "dst_ip": "10.0.1.20",
+    "src_port": 44821,
+    "dst_port": 22,
+    "protocol": "TCP",
+    "action": "deny",
+    "bytes_sent": 0,
+    "rule_id": "FW-RULE-101"
+  },
+  {
+    "id": "fw-002",
+    "timestamp": "2026-04-03T02:14:45Z",
+    "src_ip": "203.0.113.45",
+    "dst_ip": "10.0.1.20",
+    "src_port": 44822,
+    "dst_port": 3389,
+    "protocol": "TCP",
+    "action": "deny",
+    "bytes_sent": 0,
+    "rule_id": "FW-RULE-101"
+  },
+  {
+    "id": "fw-003",
+    "timestamp": "2026-04-03T02:15:02Z",
+    "src_ip": "203.0.113.45",
+    "dst_ip": "10.0.1.20",
+    "src_port": 44823,
+    "dst_port": 443,
+    "protocol": "TCP",
+    "action": "allow",
+    "bytes_sent": 1240,
+    "rule_id": "FW-RULE-200"
+  },
+  {
+    "id": "fw-004",
+    "timestamp": "2026-04-03T02:17:50Z",
+    "src_ip": "203.0.113.45",
+    "dst_ip": "10.0.1.20",
+    "src_port": 44830,
+    "dst_port": 8080,
+    "protocol": "TCP",
+    "action": "deny",
+    "bytes_sent": 0,
+    "rule_id": "FW-RULE-101"
+  },
+  {
+    "id": "fw-005",
+    "timestamp": "2026-04-03T02:22:10Z",
+    "src_ip": "203.0.113.45",
+    "dst_ip": "10.0.1.20",
+    "src_port": 44835,
+    "dst_port": 443,
+    "protocol": "TCP",
+    "action": "allow",
+    "bytes_sent": 85400,
+    "rule_id": "FW-RULE-200"
+  },
+  {
+    "id": "fw-006",
+    "timestamp": "2026-04-03T10:05:12Z",
+    "src_ip": "10.0.0.50",
+    "dst_ip": "10.0.1.5",
+    "src_port": 52100,
+    "dst_port": 443,
+    "protocol": "TCP",
+    "action": "allow",
+    "bytes_sent": 3200,
+    "rule_id": "FW-RULE-200"
+  },
+  {
+    "id": "fw-007",
+    "timestamp": "2026-04-03T10:12:44Z",
+    "src_ip": "192.168.1.100",
+    "dst_ip": "10.0.1.10",
+    "src_port": 53201,
+    "dst_port": 80,
+    "protocol": "TCP",
+    "action": "allow",
+    "bytes_sent": 1500,
+    "rule_id": "FW-RULE-200"
+  },
+  {
+    "id": "fw-008",
+    "timestamp": "2026-04-03T14:30:00Z",
+    "src_ip": "192.168.1.100",
+    "dst_ip": "10.0.1.10",
+    "src_port": 53300,
+    "dst_port": 443,
+    "protocol": "TCP",
+    "action": "allow",
+    "bytes_sent": 4800,
+    "rule_id": "FW-RULE-200"
+  },
+  {
+    "id": "fw-009",
+    "timestamp": "2026-04-03T02:19:30Z",
+    "src_ip": "203.0.113.45",
+    "dst_ip": "10.0.1.20",
+    "src_port": 44832,
+    "dst_port": 1433,
+    "protocol": "TCP",
+    "action": "deny",
+    "bytes_sent": 0,
+    "rule_id": "FW-RULE-101"
+  },
+  {
+    "id": "fw-010",
+    "timestamp": "2026-04-03T02:20:15Z",
+    "src_ip": "203.0.113.45",
+    "dst_ip": "10.0.1.20",
+    "src_port": 44833,
+    "dst_port": 5432,
+    "protocol": "TCP",
+    "action": "deny",
+    "bytes_sent": 0,
+    "rule_id": "FW-RULE-101"
+  }
+]

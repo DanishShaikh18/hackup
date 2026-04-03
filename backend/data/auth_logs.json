@@ -1,0 +1,102 @@
+[
+  {
+    "id": "auth-001",
+    "timestamp": "2026-04-03T02:15:10Z",
+    "user_id": "admin",
+    "src_ip": "203.0.113.45",
+    "action": "login_failed",
+    "method": "password",
+    "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+    "geo_location": "Unknown — Tor Exit Node"
+  },
+  {
+    "id": "auth-002",
+    "timestamp": "2026-04-03T02:15:22Z",
+    "user_id": "admin",
+    "src_ip": "203.0.113.45",
+    "action": "login_failed",
+    "method": "password",
+    "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+    "geo_location": "Unknown — Tor Exit Node"
+  },
+  {
+    "id": "auth-003",
+    "timestamp": "2026-04-03T02:15:38Z",
+    "user_id": "admin",
+    "src_ip": "203.0.113.45",
+    "action": "login_failed",
+    "method": "password",
+    "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+    "geo_location": "Unknown — Tor Exit Node"
+  },
+  {
+    "id": "auth-004",
+    "timestamp": "2026-04-03T02:16:05Z",
+    "user_id": "root",
+    "src_ip": "203.0.113.45",
+    "action": "login_failed",
+    "method": "password",
+    "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+    "geo_location": "Unknown — Tor Exit Node"
+  },
+  {
+    "id": "auth-005",
+    "timestamp": "2026-04-03T02:16:44Z",
+    "user_id": "admin",
+    "src_ip": "203.0.113.45",
+    "action": "login_failed",
+    "method": "password",
+    "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+    "geo_location": "Unknown — Tor Exit Node"
+  },
+  {
+    "id": "auth-006",
+    "timestamp": "2026-04-03T02:17:20Z",
+    "user_id": "admin",
+    "src_ip": "203.0.113.45",
+    "action": "login_success",
+    "method": "password",
+    "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+    "geo_location": "Unknown — Tor Exit Node"
+  },
+  {
+    "id": "auth-007",
+    "timestamp": "2026-04-03T09:00:15Z",
+    "user_id": "jsmith",
+    "src_ip": "10.0.0.50",
+    "action": "login_success",
+    "method": "sso",
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0",
+    "geo_location": "Office — New York"
+  },
+  {
+    "id": "auth-008",
+    "timestamp": "2026-04-03T09:30:45Z",
+    "user_id": "mjones",
+    "src_ip": "192.168.1.100",
+    "action": "login_success",
+    "method": "sso",
+    "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X) Safari/605.1",
+    "geo_location": "Office — New York"
+  },
+  {
+    "id": "auth-009",
+    "timestamp": "2026-04-03T10:15:00Z",
+    "user_id": "jsmith",
+    "src_ip": "10.0.0.50",
+    "action": "login_success",
+    "method": "sso",
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0",
+    "geo_location": "Office — New York"
+  },
+  {
+    "id": "auth-010",
+    "timestamp": "2026-04-03T02:18:00Z",
+    "user_id": "admin",
+    "src_ip": "203.0.113.45",
+    "action": "login_success",
+    "method": "password",
+    "user_agent": "curl/7.88.1",
+    "geo_location": "Unknown — Tor Exit Node"
+  }
+]

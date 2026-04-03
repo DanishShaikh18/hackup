@@ -1,14 +1,4 @@
 fastapi
 uvicorn[standard]
-langgraph
-langchain
-langchain-groq
-llama-index
-qdrant-client
-sentence-transformers
-requests
 python-dotenv
-pydantic
-rich
 groq
-httpx
