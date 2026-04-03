@@ -1,0 +1,36 @@
+{
+  "brute_force": {
+    "name": "Brute Force Response Playbook",
+    "description": "Response actions for brute force / credential stuffing attacks",
+    "actions": [
+      {
+        "id": "phone_verify",
+        "label": "Phone Verification",
+        "tier": 0,
+        "reason_template": "Verify identity of {username} via registered phone number before taking containment actions.",
+        "risk": "low"
+      },
+      {
+        "id": "soft_lock_account",
+        "label": "Soft Lock Account",
+        "tier": 1,
+        "reason_template": "Temporarily lock {username}'s account to prevent further unauthorized access from {src_ip}.",
+        "risk": "medium"
+      },
+      {
+        "id": "block_src_ip",
+        "label": "Block Source IP",
+        "tier": 1,
+        "reason_template": "Block {src_ip} at perimeter firewall. IP identified as {ip_context}.",
+        "risk": "medium"
+      },
+      {
+        "id": "isolate_host",
+        "label": "Isolate Host",
+        "tier": 2,
+        "reason_template": "Network-isolate {asset_id} ({hostname}) to prevent lateral movement. Asset criticality: {criticality}.",
+        "risk": "high"
+      }
+    ]
+  }
+}

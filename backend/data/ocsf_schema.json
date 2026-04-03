@@ -1,0 +1,39 @@
+{
+  "version": "1.1.0",
+  "description": "Simplified OCSF schema mappings for SOCentinel",
+  "categories": {
+    "authentication": {
+      "class_uid": 3002,
+      "class_name": "Authentication",
+      "fields": ["activity_id", "auth_protocol", "dst_endpoint", "src_endpoint", "status", "user", "time"]
+    },
+    "file_activity": {
+      "class_uid": 4001,
+      "class_name": "File System Activity",
+      "fields": ["activity_id", "file", "actor", "device", "status", "time"]
+    },
+    "process_activity": {
+      "class_uid": 1007,
+      "class_name": "Process Activity",
+      "fields": ["activity_id", "process", "actor", "device", "parent_process", "time"]
+    },
+    "network_activity": {
+      "class_uid": 4001,
+      "class_name": "Network Activity",
+      "fields": ["activity_id", "connection_info", "dst_endpoint", "src_endpoint", "traffic", "time"]
+    }
+  },
+  "activity_ids": {
+    "1": "create",
+    "2": "read",
+    "3": "update",
+    "4": "delete",
+    "5": "rename",
+    "6": "execute"
+  },
+  "status_ids": {
+    "1": "success",
+    "2": "failure",
+    "99": "unknown"
+  }
+}
