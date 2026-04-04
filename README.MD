@@ -40,43 +40,41 @@ The key principle: **the AI narrates, the math decides**. Risk scores, confidenc
 ## 🏗️ Architecture
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                       Frontend (React + Vite)                    │
-│  ┌──────────────┐  ┌──────────────────────────────────────────┐  │
-│  │ Case History  │  │          Right Workspace                 │  │
-│  │ Chat Panel    │  │  ┌──────────────────────────────────┐   │  │
-│  │ (NL queries)  │  │  │ Threat Selector (IP tabs)        │   │  │
-│  │               │  │  │ Risk Score + Math Box + Alerts    │   │  │
-│  │               │  │  │ Multi-Agent Analysis Panel        │   │  │
-│  │               │  │  │ Kill Chain Timeline (7 stages)    │   │  │
-│  │               │  │  │ Attack Timeline (pivot points)    │   │  │
-│  │               │  │  │ Evidence Table (filterable)       │   │  │
-│  │               │  │  │ SOAR Actions (block IP)           │   │  │
-│  └──────────────┘  │  └──────────────────────────────────┘   │  │
-│                     └──────────────────────────────────────────┘  │
-└──────────────────────────┬───────────────────────────────────────┘
-                           │ HTTP (localhost:8000)
-┌──────────────────────────┴───────────────────────────────────────┐
-│                      FastAPI Backend                              │
-│                                                                   │
-│  POST /analyze          — Full investigation pipeline             │
-│  POST /analyze-raw      — Unstructured syslog analysis            │
-│  POST /chat             — SOC Co-Pilot (NL search + chat)         │
-│  POST /remediate        — SOAR IP blocking (simulation)           │
-│  GET  /thresholds       — Threshold config with derivations       │
-│  GET  /cases            — List past investigations                │
-│  GET  /cases/{id}       — Retrieve full past case                 │
-│  POST /multi-agent/{case_id}/{ip} — Multi-agent threat analysis   │
-│                                                                   │
-│  ┌────────────────┐ ┌──────────────┐ ┌────────────────────────┐  │
-│  │security_tools.py│ │log_parser.py │ │     copilot.py         │  │
-│  │(Deterministic)  │ │(OCSF Parser) │ │(Grounded AI + Defense) │  │
-│  └────────────────┘ └──────────────┘ └────────────────────────┘  │
-│  ┌────────────────┐ ┌───────────────────────────────────────┐    │
-│  │ thresholds.py   │ │  llm/groq_client.py (Llama 3.3 70B) │    │
-│  │(NIST-derived)   │ └───────────────────────────────────────┘    │
-│  └────────────────┘                                               │
-└──────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│ HEADER (48px) Logo ∙ Case Pill ∙ FW|AUTH counters ∙ TZ ∙ Buttons   │
+├─────────┬──────────────────────────────────┬────────────────────────┤
+│ INTEL   │ THREAT WORKSPACE                 │ EVIDENCE &             │
+│ FEED    │                                  │ ACTIONS                │
+│ 260px   │ [Threat Pills + Compare]         │ 320px                  │
+│         │ [IP Header + Actions]            │                        │
+│ Cases   │ [Arc Gauge + Formula + KillChain]│ [Evidence Cards]       │
+│ (time-  │ [Swimlane Attack Timeline]       │ [Triggered Alerts]     │
+│  line)  │ [MITRE Technique Grid]           │ [SOAR Actions]         │
+│         │ [Multi-Agent Panel]              │                        │
+│ ⌨ Keys │                                  │              [💬 Chat] │
+└─────────┴──────────────────────────────────┴────────────────────────┘
+                           │ HTTP (localhost:8000)                      
+┌──────────────────────────┴───────────────────────────────────────────┐
+│                      FastAPI Backend                                 │
+│                                                                      │
+│  POST /analyze          — Full investigation pipeline                │
+│  POST /analyze-raw      — Unstructured syslog analysis               │
+│  POST /chat             — SOC Co-Pilot (NL search + chat)            │
+│  POST /remediate        — SOAR IP blocking (simulation)              │
+│  GET  /thresholds       — Threshold config with derivations          │
+│  GET  /cases            — List past investigations                   │
+│  GET  /cases/{id}       — Retrieve full past case                    │
+│  POST /multi-agent/{case_id}/{ip} — Multi-agent threat analysis      │
+│                                                                      │
+│  ┌────────────────┐ ┌──────────────┐ ┌────────────────────────┐     │
+│  │security_tools.py│ │log_parser.py │ │     copilot.py         │     │
+│  │(Deterministic)  │ │(OCSF Parser) │ │(Grounded AI + Defense) │     │
+│  └────────────────┘ └──────────────┘ └────────────────────────┘     │
+│  ┌────────────────┐ ┌───────────────────────────────────────┐       │
+│  │ thresholds.py   │ │  llm/groq_client.py (Llama 3.3 70B) │       │
+│  │(NIST-derived)   │ └───────────────────────────────────────┘       │
+│  └────────────────┘                                                  │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -87,7 +85,7 @@ The key principle: **the AI narrates, the math decides**. Risk scores, confidenc
 |-----------|-----------|---------|
 | **Backend** | Python 3.11+, FastAPI, Uvicorn | REST API server |
 | **LLM** | Groq Cloud (Llama 3.3 70B Versatile) | Grounded AI narration, NL search, multi-agent |
-| **Frontend** | React 18, Vite 5, Vanilla CSS | Dark-theme SOC dashboard |
+| **Frontend** | React 18, Vite 5, Vanilla CSS | 3-panel command center dashboard |
 | **Data** | JSON log files + raw syslog text | No database required |
 | **Fonts** | Inter (UI), JetBrains Mono (data) | monospace for IPs/scores |
 | **Dependencies** | `fastapi`, `uvicorn`, `python-dotenv`, `groq` | Minimal — 4 pip packages |
@@ -121,17 +119,16 @@ hackup/
     └── src/
         ├── main.jsx              # React DOM entry point
         ├── index.css             # Global reset, scrollbar, reduced-motion
-        ├── App.css               # Full design system — CSS variables, grid layout, all component styles
-        ├── App.jsx               # Shell — state management, analysis orchestration
+        ├── App.css               # Full design system — CSS custom properties, 3-panel grid, all component styles
+        ├── App.jsx               # Shell — 3-panel grid, global state, keyboard shortcuts, timezone
         └── components/
-            ├── ChatPanel.jsx     # SOC Co-Pilot chat interface
-            ├── CaseHistory.jsx   # Collapsible past investigation list
-            ├── ThreatSelector.jsx # IP tab bar for switching between threats
-            ├── MathBox.jsx       # Risk score gauge + formula + alerts + multi-agent panel
-            ├── KillChainTimeline.jsx # Horizontal 7-stage kill chain
-            ├── AttackTimeline.jsx # Vertical chronological attack reconstruction
-            ├── EvidenceTable.jsx # Filterable evidence log table
-            └── SOARButton.jsx    # IP blocking actions
+            ├── Header.jsx        # Header bar — logo, case pills, animated counters, TZ dropdown, analyze buttons
+            ├── IntelFeed.jsx     # Left panel — case history timeline cards + keyboard shortcuts cheatsheet
+            ├── ThreatWorkspace.jsx # Center panel — threat pills, compare mode, arc gauge, kill chain bar,
+            │                     #   swimlane attack timeline, MITRE grid, multi-agent panel, loading sequence
+            ├── EvidencePanel.jsx # Right panel — filterable evidence cards, triggered alert stack, SOAR actions
+            ├── ChatDrawer.jsx    # Slide-out AI chat drawer — grounded/generative badges, markdown, quick chips
+            └── ShortcutsModal.jsx # Keyboard shortcuts overlay modal
 ```
 
 ---
@@ -532,69 +529,93 @@ Both formats are parsed into the same internal dict shape, then normalized to **
 
 ---
 
-## 🎨 Frontend — UI Design
+## 🎨 Frontend — Command Center UI
 
-### Design System
+### Design Philosophy
+
+1. **Command Density** — every visible element serves an immediate investigative purpose, arranged spatially so a SOC analyst absorbs the entire threat landscape in a single glance without scrolling
+2. **Severity-Driven Hierarchy** — critical threats dominate attention through typographic weight and spatial prominence, not color alone
+3. **Speed of Thought** — keyboard shortcuts eliminate click latency, micro-interactions confirm every action decisively, AI co-pilot is one keystroke away
+
+### Color System
 
 | Token | Value | Usage |
 |-------|-------|-------|
-| `--bg-base` | `#0a0b0e` | Page background |
-| `--bg-surface` | `#111318` | Cards, panels, header, sidebar |
-| `--bg-elevated` | `#1a1d24` | Inputs, chat bubbles, hover states |
-| `--accent-blue` | `#3b82f6` | Primary actions, active states |
-| `--severity-critical` | `#ef4444` | Critical severity badges, red alerts |
-| `--severity-high` | `#f97316` | High severity, orange |
-| `--severity-medium` | `#eab308` | Medium, yellow |
-| `--severity-low` | `#22c55e` | Low severity, green, success states |
-| `--pivot-gold` | `#f59e0b` | Pivot points in attack timeline |
+| `--bg-base` | `#070B14` | Page background (warm navy-black) |
+| `--bg-panel` | `#0A0E16` | Left/right panel backgrounds |
+| `--bg-card` | `#0D1117` | Card surfaces, chat bubbles |
+| `--bg-input` | `#131A27` | Inputs, dropdowns, elevated surfaces |
+| `--color-accent` | `#6366F1` | Electric indigo — primary CTAs, active states |
+| `--color-critical` | `#DC2626` | De-saturated crimson for critical severity |
+| `--color-high` | `#D97706` | Amber for high severity |
+| `--color-medium` | `#4F46E5` | Slate blue — "watchful" not alarming |
+| `--color-low` | `#059669` | Muted emerald for low severity, success |
+| `--color-pivot` | `#B45309` | Warm gold for attack pivot points |
+| `--color-ai` | `#0D9488` | Teal for AI/grounded status indicators |
+| `--color-info` | `#64748B` | Cool slate for informational items |
 
-**Typography:** Inter for UI text, JetBrains Mono for IPs, timestamps, scores, formulas, code.
+**Typography:** Inter for all UI text. JetBrains Mono for IPs, scores, timestamps, formulas, rule IDs, case IDs, log entries. Never mixed in the same element.
 
-### Layout Structure
+### Three-Panel Layout
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│ HEADER (fixed, 52px)                                    │
-│ 🛡 SOCentinel  [case pills]  [▶ Analyze] [📄 Raw]     │
-└─────────────────────────────────────────────────────────┘
-┌───────────────┬─────────────────────────────────────────┐
-│ LEFT SIDEBAR  │ RIGHT WORKSPACE (scrollable)            │
-│ 280px fixed   │                                         │
-│               │  [Threat Selector — IP tabs]            │
-│ 📁 Cases      │  [📊 Risk Score + Math + Alerts]       │
-│ (collapsible) │  [🤖 Multi-Agent Panel]                │
-│               │  [⛓️ Kill Chain Timeline]               │
-│ 💬 Chat       │  [🕐 Attack Timeline]                  │
-│ (scrollable)  │  [📋 Evidence Table]                   │
-│               │  [🚀 SOAR Actions]                     │
-│ [input]       │                                         │
-└───────────────┴─────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│ HEADER (48px, fixed)                                             │
+│ 🛡 SOCentinel ∙ SOC Co-Pilot  │ Case Pill ∙ FW|AUTH │ TZ ∙ Btns │
+└──────────────────────────────────────────────────────────────────┘
+┌──────────┬───────────────────────────────────┬───────────────────┐
+│ LEFT     │ CENTER                            │ RIGHT             │
+│ 260px    │ (flexible, scrolls independently) │ 320px             │
+│ fixed    │                                   │ fixed             │
+│          │ [Threat Pill Bar + ⇔ Compare]     │                   │
+│ 📡 Cases │ [IP Header + Severity + Actions]  │ [Evidence Cards]  │
+│ (timeline│ [SVG Arc Gauge + Formula]         │ (FW/AUTH chips,   │
+│  cards   │ [Kill Chain Progression Bar]      │  IP search)       │
+│  w/sev   │ [Swimlane Attack Timeline]        │                   │
+│  strips) │ [MITRE ATT&CK Technique Grid]    │ [Triggered Alerts]│
+│          │ [Multi-Agent Analysis Panel]      │ (card stack)      │
+│ ⌨ Keys  │                                   │                   │
+│ (collap- │                                   │ [SOAR Actions]    │
+│  sible)  │                                   │ (inline confirm)  │
+└──────────┴───────────────────────────────────┴───────────────────┘
+                                    Chat Drawer → 380px slide-in ──┐
+                                    from right edge (kbd: C)       │
+                                    ┌──────────────────────────────┤
+                                    │ SOC Co-Pilot ● online        │
+                                    │ [AI messages w/ badges]      │
+                                    │ [Quick-action chips]         │
+                                    │ [Input area]                 │
+                                    └──────────────────────────────┘
 ```
 
 ### Components
 
 | Component | File | Description |
 |-----------|------|-------------|
-| **App** | `App.jsx` | Shell — manages `analysisData`, `selectedThreatIndex`, `caseHistory` state. Orchestrates analysis, case loading, threat selection |
-| **ChatPanel** | `ChatPanel.jsx` | Left sidebar chat. Uses `forwardRef` so App can push AI summaries. Typing indicator, timestamps, messages persist across analyses |
-| **CaseHistory** | `CaseHistory.jsx` | Collapsible panel above chat. Lists past cases with severity badges. Click to reload any past investigation |
-| **ThreatSelector** | `ThreatSelector.jsx` | Horizontal tab bar — one tab per correlated IP. Shows IP (monospace), severity badge, score. FP threats show "FP" label |
-| **MathBox** | `MathBox.jsx` | SVG circular gauge for risk score (color-coded). Formula breakdown in monospace. FP status. Triggered alerts list. Multi-agent analysis button + expandable report panel |
-| **KillChainTimeline** | `KillChainTimeline.jsx` | Horizontal 7-stage kill chain. Active stages have colored dots with glow. Technique IDs shown below with tooltip for full name |
-| **AttackTimeline** | `AttackTimeline.jsx` | Vertical timeline with color-coded dots per kill chain stage. Pivot points highlighted with gold border + ⚡ PIVOT badge. MITRE tooltips, source badges |
-| **EvidenceTable** | `EvidenceTable.jsx` | Sticky header table. Source/event badges. Correlated IPs in red. Filter by source (All/Firewall/Auth). IP search input (max 200px). Max-height 320px, scrollable |
-| **SOARButton** | `SOARButton.jsx` | Shows only for non-FP threats. Block IP button → turns green "✓ Blocked" with rule ID after click |
+| **App** | `App.jsx` | Shell — 3-panel CSS Grid layout, manages `analysisData`, `selectedThreatIdx`, `caseHistory`, `timezone`, `chatOpen`, `shortcutsOpen` state. Keyboard shortcut handler (A/R/Tab/C/?/Esc). Exports `formatTS`, `formatTimeShort`, `sevColor`, `sevClass` helpers |
+| **Header** | `Header.jsx` | Full-width header bar — shield logo SVG, animated count-up chips (FW/AUTH/IP counts tick up from 0 on analysis), timezone dropdown (UTC/IST/EST/PST/Local), pulsing CTA Analyze button, Raw analyze button |
+| **IntelFeed** | `IntelFeed.jsx` | Left panel (260px, fixed) — case history as timeline cards with left-edge severity color strip, case ID (mono), timestamp in selected timezone, threat count, severity badge. Click to reload past case. Collapsible keyboard shortcuts cheatsheet at bottom |
+| **ThreatWorkspace** | `ThreatWorkspace.jsx` | Center panel (flexible, independently scrollable) — contains all analysis visualization. Includes: threat pill bar with compare button, threat header (28px mono IP, severity badge, 10-segment confidence meter, FP verdict, action buttons), SVG arc gauge (7→5 o'clock position, 300° arc, score at center 36px mono), formula blocks, kill chain progression bar (7 stages with connector lines and glow on active), swimlane attack timeline (horizontal, nodes positioned by timestamp, diamonds for pivots, position:fixed tooltips that escape overflow), MITRE technique grid (compact chip cards organized by tactic), multi-agent panel (3 agent cards + coordinator synthesis), cinematic loading sequence (6 steps with check animations), and side-by-side threat comparison mode |
+| **EvidencePanel** | `EvidencePanel.jsx` | Right panel (320px, fixed) — filterable evidence cards (2-line compact: source badge + timestamp + IP on line 1, event + details on line 2), filter chips (All/FW/Auth), IP search input, triggered alerts as card stack with left border severity color, SOAR actions with inline confirmation prompt ("Block 203.0.113.45? [Cancel] [Block IP →]"), blocked IPs list with rule IDs |
+| **ChatDrawer** | `ChatDrawer.jsx` | Slide-out drawer (380px, right edge, 200ms cubic-bezier) — triggered by floating 💬 button or keyboard C. Green pulsing online dot. AI messages with left teal border and "Grounded"/"Generative" badges. User messages right-aligned indigo. Typing indicator (3 staggered bouncing dots). Quick-action chips ("Summarize threats", "Why not FP?", "Block recommendation", "MITRE breakdown"). Simple markdown rendering (bold, code, lists). Injection-blocked messages shown as red warning bubbles. Enter sends, Shift+Enter newline |
+| **ShortcutsModal** | `ShortcutsModal.jsx` | Centered modal on `?` keypress — lists all keyboard shortcuts with styled mono key badges. Press Esc or ? again to close |
 
 ### UX Behaviors
 
-- **Auto-selection:** After analysis, the highest-risk threat is auto-selected
-- **AI summary injection:** The `ai_summary` from `/analyze` is automatically pushed as the first AI message in chat
-- **Loading states:** Skeleton shimmer animations while analysis runs
+- **Auto-selection:** After analysis, the highest-risk threat is auto-selected in the pill bar
+- **AI summary injection:** The `ai_summary` from `/analyze` is pushed as the first AI message in the chat drawer
+- **Cinematic loading:** Analysis shows a step-by-step progress feed ("Ingesting logs... → Correlating IPs... → Scoring threats... → Mapping MITRE ATT&CK... → Building timeline... → Generating AI summary...") with check animations — not a spinner
+- **Live counters:** Header FW/AUTH/IP chips animate from 0 to final count in 600ms on new analysis
+- **Timezone control:** All timestamps reformat live when timezone is changed via header dropdown
+- **Threat comparison:** When 2+ threats exist, a "⇔ Compare" button appears. Clicking enters side-by-side split view showing risk scores, kill chain stages, and evidence in parallel columns
+- **Confidence meter:** 10-segment horizontal bar, colors shift from amber (low) to teal (high)
+- **Keyboard-first:** `A` = analyze, `R` = raw, `Tab` = cycle threats, `C` = chat, `?` = shortcuts, `Esc` = close panels. Shortcuts disabled when typing in inputs
+- **SOAR confirmation:** Inline prompt before blocking an IP — no browser alert. Button morphs through states: default → confirming → blocking → blocked (green + rule ID)
 - **Empty states:** Every panel shows an icon + helper text when no data
-- **No layout shift:** Panels maintain positions when data loads
 - **Smooth transitions:** `transition: all 0.15s ease` on all interactive elements
-- **Scrollbar styling:** Thin dark scrollbars matching the theme
+- **Scrollbar styling:** 5px thin dark scrollbars matching navy-black theme
 - **Reduced motion:** Respects `prefers-reduced-motion` media query
+- **Position:fixed tooltips:** All hover tooltips use `position: fixed` with `getBoundingClientRect()` viewport coordinates — escapes all overflow clipping from parent containers
 
 ---
 
