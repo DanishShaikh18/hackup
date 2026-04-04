@@ -23,6 +23,7 @@ load_dotenv()
 from log_parser import LogParser
 from security_tools import correlate_logs, analyze_threat
 from copilot import narrate_investigation, chat as copilot_chat, nl_search
+from thresholds import get_all_thresholds, SENSITIVITY_PROFILES, ACTIVE_PROFILE
 
 # ── Data paths ───────────────────────────────────────────────
 BASE_DIR = Path(__file__).parent
@@ -311,3 +312,20 @@ async def analyze_raw(request: Request):
 
     last_analysis = case
     return case
+
+@app.get("/thresholds")
+async def thresholds_info():
+    """
+    Returns all threshold configurations with full derivation documentation.
+    Judges can inspect exactly how every detection decision is made.
+    """
+    return {
+        "active_profile": ACTIVE_PROFILE,
+        "profiles": SENSITIVITY_PROFILES,
+        "thresholds": get_all_thresholds(),
+        "note": (
+            "All thresholds are derived from NIST SP 800-61r2, SANS Institute benchmarks, "
+            "Microsoft Security Baseline, and statistical mean+sigma analysis. "
+            "Change ACTIVE_PROFILE in thresholds.py to tune sensitivity."
+        ),
+    }
