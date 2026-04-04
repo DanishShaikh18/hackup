@@ -1,37 +1,39 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle, useCallback } from 'react';
 
 const API = 'http://localhost:8000';
 
-export default function ChatPanel({ analysisData, onAnalysisRequest }) {
-  const [messages, setMessages] = useState([
-    {
-      role: 'system',
-      content: 'SOCentinel Co-Pilot ready. Click "Analyze Logs" to start an investigation, or ask me anything about security.',
-    },
-  ]);
+const ChatPanel = forwardRef(function ChatPanel(_, ref) {
+  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const messagesEndRef = useRef(null);
+  const scrollRef = useRef(null);
 
-  // When new analysis arrives, add the AI summary as a message
-  useEffect(() => {
-    if (analysisData?.ai_summary) {
-      setMessages((prev) => [
-        ...prev,
-        { role: 'ai', content: analysisData.ai_summary },
-      ]);
+  const now = () => {
+    const d = new Date();
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const scrollToBottom = useCallback(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [analysisData?.case_id]);
+  }, []);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    scrollToBottom();
+  }, [messages, loading, scrollToBottom]);
 
-  const sendMessage = async () => {
+  useImperativeHandle(ref, () => ({
+    addAiMessage: (text) => {
+      setMessages(prev => [...prev, { role: 'ai', text, time: now() }]);
+    },
+  }));
+
+  const handleSend = async () => {
     const msg = input.trim();
     if (!msg || loading) return;
 
-    setMessages((prev) => [...prev, { role: 'user', content: msg }]);
+    setMessages(prev => [...prev, { role: 'user', text: msg, time: now() }]);
     setInput('');
     setLoading(true);
 
@@ -42,72 +44,76 @@ export default function ChatPanel({ analysisData, onAnalysisRequest }) {
         body: JSON.stringify({ message: msg }),
       });
       const data = await res.json();
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'ai',
-          content: data.reply || 'No response received.',
-          type: data.type,
-        },
-      ]);
+      const reply = data.reply || data.error || 'No response';
+      setMessages(prev => [...prev, { role: 'ai', text: reply, time: now() }]);
     } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: 'ai', content: 'Connection error. Is the backend running?' },
-      ]);
+      setMessages(prev => [...prev, { role: 'ai', text: '⚠ Connection error — is the backend running?', time: now() }]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
-  const handleKeyDown = (e) => {
+  const handleKey = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      sendMessage();
+      handleSend();
     }
   };
 
   return (
     <div className="chat-panel">
-      <div className="chat-panel__header">
-        <span>🤖</span>
-        SOC Co-Pilot
+      <div className="chat-header">
+        <div className="chat-header-title">
+          <span className="chat-header-dot" />
+          SOC Co-Pilot
+        </div>
       </div>
 
-      <div className="chat-panel__messages">
-        {messages.map((msg, i) => (
-          <div key={i} className={`chat-bubble chat-bubble--${msg.role}`}>
-            {msg.content}
-          </div>
-        ))}
-        {loading && (
-          <div className="chat-bubble chat-bubble--ai">
-            <div className="typing-dots">
-              <span></span><span></span><span></span>
+      <div className="chat-messages" ref={scrollRef}>
+        {messages.length === 0 && (
+          <div className="empty-state" style={{ padding: '40px 12px' }}>
+            <div className="empty-state-icon">💬</div>
+            <div className="empty-state-text">
+              Ask questions about the investigation or search logs
             </div>
           </div>
         )}
-        <div ref={messagesEndRef} />
+
+        {messages.map((m, i) => (
+          <div key={i} className={`chat-msg chat-msg-${m.role}`}>
+            <div className="chat-msg-bubble">{m.text}</div>
+            <span className="chat-msg-time">{m.time}</span>
+          </div>
+        ))}
+
+        {loading && (
+          <div className="chat-typing">
+            <span className="chat-typing-dot" />
+            <span className="chat-typing-dot" />
+            <span className="chat-typing-dot" />
+          </div>
+        )}
       </div>
 
-      <div className="chat-panel__input-area">
+      <div className="chat-input-area">
         <input
-          id="chat-input"
-          className="chat-panel__input"
+          className="chat-input"
           placeholder="Ask about the investigation..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          disabled={loading}
+          onKeyDown={handleKey}
         />
         <button
-          id="chat-send-btn"
-          className="chat-panel__send"
-          onClick={sendMessage}
-          disabled={loading || !input.trim()}
+          className="chat-send-btn"
+          onClick={handleSend}
+          disabled={!input.trim() || loading}
+          title="Send message"
         >
-          Send
+          ↑
         </button>
       </div>
     </div>
   );
-}
+});
+
+export default ChatPanel;

@@ -1,55 +1,76 @@
+import React from 'react';
+
+function stageColor(stage, active) {
+  if (!active) return '#555b66';
+  const s = (stage || '').toLowerCase();
+  if (s.includes('recon')) return '#3b82f6';
+  if (s.includes('weapon')) return '#6366f1';
+  if (s.includes('delivery')) return '#f97316';
+  if (s.includes('exploit')) return '#ef4444';
+  if (s.includes('install')) return '#dc2626';
+  if (s.includes('command')) return '#a855f7';
+  if (s.includes('action')) return '#ef4444';
+  return '#6b7280';
+}
+
 export default function KillChainTimeline({ killChain }) {
   if (!killChain || killChain.length === 0) {
     return (
       <div className="panel">
-        <div className="panel__header">
-          <span className="panel__header-icon">⚔️</span>
-          Cyber Kill Chain
-        </div>
+        <div className="panel-header"><span className="panel-title">⛓️ Kill Chain</span></div>
         <div className="empty-state">
-          <div className="empty-state__icon">🔗</div>
-          <div className="empty-state__text">
-            Kill Chain timeline will appear after analysis.
-          </div>
+          <div className="empty-state-icon">⛓️</div>
+          <div className="empty-state-text">Run analysis to view kill chain progression</div>
         </div>
       </div>
     );
   }
 
-  const stageIcons = {
-    'Reconnaissance': '🔍',
-    'Weaponization': '🔧',
-    'Delivery': '📧',
-    'Exploitation': '💥',
-    'Installation': '📦',
-    'Command & Control': '📡',
-    'Actions on Objectives': '🎯',
-  };
-
   return (
     <div className="panel">
-      <div className="panel__header">
-        <span className="panel__header-icon">⚔️</span>
-        Cyber Kill Chain
+      <div className="panel-header">
+        <span className="panel-title">
+          ⛓️ Kill Chain
+          <span className="panel-badge">
+            {killChain.filter(s => s.active).length}/{killChain.length}
+          </span>
+        </span>
       </div>
-      <div className="panel__body">
-        <div className="kill-chain">
-          {killChain.map((stage, i) => (
-            <div
-              key={i}
-              className={`kill-chain__stage kill-chain__stage--${stage.active ? 'active' : 'inactive'}`}
-            >
-              <div className="kill-chain__dot">
-                {stageIcons[stage.stage] || (i + 1)}
-              </div>
-              <div className="kill-chain__name">{stage.stage}</div>
-              {stage.active && stage.techniques.map((tech, ti) => (
-                <div key={ti} className="kill-chain__technique">
-                  {tech.technique_id}
+      <div className="panel-body">
+        <div className="killchain">
+          {killChain.map((stage, i) => {
+            const color = stageColor(stage.stage, stage.active);
+            return (
+              <React.Fragment key={stage.stage}>
+                {i > 0 && (
+                  <div className="killchain-connector">
+                    <span className="killchain-arrow">→</span>
+                  </div>
+                )}
+                <div className="killchain-stage">
+                  <div
+                    className={`killchain-dot ${stage.active ? 'killchain-dot-active' : 'killchain-dot-inactive'}`}
+                    style={stage.active ? { color, borderColor: color, background: `${color}18` } : {}}
+                  >
+                    {stage.weight}
+                  </div>
+                  <span className={`killchain-label ${!stage.active ? 'killchain-label-inactive' : ''}`}>
+                    {stage.stage}
+                  </span>
+                  {stage.active && stage.techniques && stage.techniques.length > 0 && (
+                    <div className="killchain-techniques">
+                      {stage.techniques.map((t, j) => (
+                        <span key={j} className="tooltip-wrapper">
+                          <span className="killchain-technique-id">{t.technique_id}</span>
+                          <span className="tooltip-text">{t.technique_name}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              ))}
-            </div>
-          ))}
+              </React.Fragment>
+            );
+          })}
         </div>
       </div>
     </div>

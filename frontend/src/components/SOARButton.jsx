@@ -1,23 +1,43 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 
 const API = 'http://localhost:8000';
 
-export default function SOARButton({ threats }) {
-  const [blockedIPs, setBlockedIPs] = useState(new Set());
-  const [loading, setLoading] = useState(null);
-  const [toast, setToast] = useState(null);
+function scoreColor(score) {
+  if (score >= 8) return '#ef4444';
+  if (score >= 6) return '#f97316';
+  if (score >= 4) return '#eab308';
+  return '#22c55e';
+}
 
-  if (!threats || threats.length === 0) {
-    return null;
+function severityClass(severity) {
+  const s = (severity || '').toLowerCase();
+  if (s === 'critical') return 'badge-critical';
+  if (s === 'high') return 'badge-high';
+  if (s === 'medium') return 'badge-medium';
+  if (s === 'low') return 'badge-low';
+  return 'badge-info';
+}
+
+export default function SOARButton({ threats }) {
+  const [blockedMap, setBlockedMap] = useState({});
+
+  const actionableThreats = (threats || []).filter(
+    t => !t.false_positive_analysis?.is_false_positive
+  );
+
+  if (actionableThreats.length === 0) {
+    return (
+      <div className="panel">
+        <div className="panel-header"><span className="panel-title">🚀 SOAR Actions</span></div>
+        <div className="empty-state">
+          <div className="empty-state-icon">🚀</div>
+          <div className="empty-state-text">No actionable threats — all clear or all false positives</div>
+        </div>
+      </div>
+    );
   }
 
-  // Only show for non-false-positive threats
-  const actionableThreats = threats.filter(t => !t.false_positive_analysis?.is_false_positive);
-
-  if (actionableThreats.length === 0) return null;
-
   const handleBlock = async (ip) => {
-    setLoading(ip);
     try {
       const res = await fetch(`${API}/remediate`, {
         method: 'POST',
@@ -26,59 +46,50 @@ export default function SOARButton({ threats }) {
       });
       const data = await res.json();
       if (data.status === 'success') {
-        setBlockedIPs((prev) => new Set([...prev, ip]));
-        setToast(`✅ ${ip} blocked — Rule ${data.details?.rule_added}`);
-        setTimeout(() => setToast(null), 3000);
+        setBlockedMap(prev => ({
+          ...prev,
+          [ip]: data.details?.rule_added || 'BLOCKED',
+        }));
       }
-    } catch {
-      setToast(`❌ Failed to block ${ip}`);
-      setTimeout(() => setToast(null), 3000);
+    } catch (err) {
+      console.error('Block failed:', err);
     }
-    setLoading(null);
   };
 
   return (
-    <>
-      <div className="panel">
-        <div className="panel__header">
-          <span className="panel__header-icon">🚨</span>
-          SOAR Actions
-        </div>
-        <div className="panel__body">
-          <div className="soar-actions">
-            {actionableThreats.map((threat) => {
-              const ip = threat.ip;
-              const isBlocked = blockedIPs.has(ip);
-              const isLoading = loading === ip;
+    <div className="panel">
+      <div className="panel-header">
+        <span className="panel-title">
+          🚀 SOAR Actions
+          <span className="panel-badge">{actionableThreats.length}</span>
+        </span>
+      </div>
+      <div className="panel-body">
+        <div className="soar-actions">
+          {actionableThreats.map(t => {
+            const score = t.risk_score?.score || 0;
+            const severity = t.risk_score?.severity || 'Info';
+            const isBlocked = !!blockedMap[t.ip];
+            const ruleId = blockedMap[t.ip];
 
-              return (
-                <div key={ip} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <span className="soar-ip">{ip}</span>
-                  {isBlocked ? (
-                    <button className="soar-btn soar-btn--blocked" disabled>
-                      ✅ Blocked
-                    </button>
-                  ) : (
-                    <button
-                      id={`block-${ip.replace(/\./g, '-')}`}
-                      className="soar-btn soar-btn--block"
-                      onClick={() => handleBlock(ip)}
-                      disabled={isLoading}
-                    >
-                      {isLoading ? (
-                        <><span className="loader"></span> Blocking...</>
-                      ) : (
-                        <>🚫 Block IP</>
-                      )}
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+            return (
+              <div key={t.ip} className="soar-row">
+                <span className="soar-ip">{t.ip}</span>
+                <span className={`badge ${severityClass(severity)}`}>{severity}</span>
+                <span className="soar-score" style={{ color: scoreColor(score) }}>{score}/10</span>
+                {isBlocked && <span className="soar-rule">Rule: {ruleId}</span>}
+                <button
+                  className={`soar-btn ${isBlocked ? 'soar-btn-blocked' : 'soar-btn-block'}`}
+                  onClick={() => !isBlocked && handleBlock(t.ip)}
+                  disabled={isBlocked}
+                >
+                  {isBlocked ? '✓ Blocked' : 'Block IP'}
+                </button>
+              </div>
+            );
+          })}
         </div>
       </div>
-      {toast && <div className="toast">{toast}</div>}
-    </>
+    </div>
   );
 }
