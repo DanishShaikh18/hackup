@@ -1,201 +1,210 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import './App.css';
-import ChatPanel from './components/ChatPanel';
-import CaseHistory from './components/CaseHistory';
-import ThreatSelector from './components/ThreatSelector';
-import MathBox from './components/MathBox';
-import KillChainTimeline from './components/KillChainTimeline';
-import AttackTimeline from './components/AttackTimeline';
-import EvidenceTable from './components/EvidenceTable';
-import SOARButton from './components/SOARButton';
+import Header from './components/Header';
+import IntelFeed from './components/IntelFeed';
+import ThreatWorkspace from './components/ThreatWorkspace';
+import EvidencePanel from './components/EvidencePanel';
+import ChatDrawer from './components/ChatDrawer';
+import ShortcutsModal from './components/ShortcutsModal';
 
 const API = 'http://localhost:8000';
+
+const TZ_OPTIONS = [
+  { label: 'UTC', value: 'UTC' },
+  { label: 'IST', value: 'Asia/Kolkata' },
+  { label: 'EST', value: 'America/New_York' },
+  { label: 'PST', value: 'America/Los_Angeles' },
+  { label: 'Local', value: Intl.DateTimeFormat().resolvedOptions().timeZone },
+];
+
+export function formatTS(ts, tz) {
+  if (!ts) return '—';
+  try {
+    const d = new Date(ts);
+    return d.toLocaleString('en-US', {
+      timeZone: tz,
+      month: 'short', day: 'numeric',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false,
+    });
+  } catch { return ts; }
+}
+
+export function formatTimeShort(ts, tz) {
+  if (!ts) return '';
+  try {
+    const d = new Date(ts);
+    return d.toLocaleTimeString('en-US', {
+      timeZone: tz,
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false,
+    });
+  } catch { return ''; }
+}
+
+export function sevColor(sev) {
+  const s = (sev || '').toLowerCase();
+  if (s === 'critical') return 'var(--color-critical)';
+  if (s === 'high') return 'var(--color-high)';
+  if (s === 'medium') return 'var(--color-medium)';
+  if (s === 'low') return 'var(--color-low)';
+  return 'var(--color-info)';
+}
+
+export function sevClass(sev) {
+  const s = (sev || '').toLowerCase();
+  if (s === 'critical') return 'badge-critical';
+  if (s === 'high') return 'badge-high';
+  if (s === 'medium') return 'badge-medium';
+  if (s === 'low') return 'badge-low';
+  return 'badge-info';
+}
 
 export default function App() {
   const [analysisData, setAnalysisData] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeType, setAnalyzeType] = useState(null);
-  const [selectedThreatIndex, setSelectedThreatIndex] = useState(0);
+  const [selectedThreatIdx, setSelectedThreatIdx] = useState(0);
   const [caseHistory, setCaseHistory] = useState([]);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [timezone, setTimezone] = useState('UTC');
   const chatRef = useRef(null);
 
-  const fetchCaseHistory = useCallback(async () => {
+  const fetchCases = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/cases`);
-      const data = await res.json();
-      setCaseHistory(data.cases || []);
-    } catch { /* ignore */ }
+      const r = await fetch(`${API}/cases`);
+      const d = await r.json();
+      setCaseHistory(d.cases || []);
+    } catch { /* */ }
   }, []);
 
   const runAnalysis = useCallback(async (endpoint) => {
     setAnalyzing(true);
     setAnalyzeType(endpoint);
     try {
-      const res = await fetch(`${API}${endpoint}`, {
+      const r = await fetch(`${API}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ asset_value: 3 }),
       });
-      const data = await res.json();
+      const data = await r.json();
       setAnalysisData(data);
-
-      // Auto-select highest risk threat
-      if (data.threats && data.threats.length > 0) {
-        let maxIdx = 0;
-        let maxScore = 0;
+      if (data.threats?.length) {
+        let mi = 0, ms = 0;
         data.threats.forEach((t, i) => {
           const s = t.risk_score?.score || 0;
-          if (s > maxScore) {
-            maxScore = s;
-            maxIdx = i;
-          }
+          if (s > ms) { ms = s; mi = i; }
         });
-        setSelectedThreatIndex(maxIdx);
+        setSelectedThreatIdx(mi);
       }
-
-      // Push AI summary to chat
       if (data.ai_summary && chatRef.current) {
-        chatRef.current.addAiMessage(data.ai_summary);
+        chatRef.current.addAiMessage(data.ai_summary, true);
       }
-
-      // Refresh case history
-      fetchCaseHistory();
+      fetchCases();
     } catch (err) {
       console.error('Analysis failed:', err);
     } finally {
       setAnalyzing(false);
       setAnalyzeType(null);
     }
-  }, [fetchCaseHistory]);
+  }, [fetchCases]);
 
   const loadCase = useCallback(async (caseId) => {
     try {
-      const res = await fetch(`${API}/cases/${caseId}`);
-      const data = await res.json();
+      const r = await fetch(`${API}/cases/${caseId}`);
+      const data = await r.json();
       if (data.error) return;
       setAnalysisData(data);
-      // Auto-select highest risk
-      if (data.threats && data.threats.length > 0) {
-        let maxIdx = 0;
-        let maxScore = 0;
+      if (data.threats?.length) {
+        let mi = 0, ms = 0;
         data.threats.forEach((t, i) => {
           const s = t.risk_score?.score || 0;
-          if (s > maxScore) { maxScore = s; maxIdx = i; }
+          if (s > ms) { ms = s; mi = i; }
         });
-        setSelectedThreatIndex(maxIdx);
+        setSelectedThreatIdx(mi);
       }
-    } catch { /* ignore */ }
+    } catch { /* */ }
   }, []);
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e) => {
+      // Don't capture when typing in inputs
+      const tag = e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+      if (e.key === '?') { e.preventDefault(); setShortcutsOpen(p => !p); }
+      if (e.key === 'c' || e.key === 'C') { e.preventDefault(); setChatOpen(p => !p); }
+      if (e.key === 'Escape') { setChatOpen(false); setShortcutsOpen(false); }
+      if (e.key === 'a' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); if (!analyzing) runAnalysis('/analyze'); }
+      if (e.key === 'r' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); if (!analyzing) runAnalysis('/analyze-raw'); }
+      if (e.key === 'Tab' && analysisData?.threats?.length > 1) {
+        e.preventDefault();
+        setSelectedThreatIdx(p => (p + 1) % analysisData.threats.length);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [analyzing, analysisData, runAnalysis]);
+
   const threats = analysisData?.threats || [];
-  const activeThreat = threats[selectedThreatIndex] || null;
-  const correlatedIps = threats.map(t => t.ip);
+  const activeThreat = threats[selectedThreatIdx] || null;
   const caseId = analysisData?.case_id || null;
 
   return (
-    <div className="app-shell">
-      {/* ── Header ───────────────────────── */}
-      <header className="header">
-        <div className="header-left">
-          <div className="header-logo">
-            <span className="shield">🛡️</span>
-            <h1>SOCentinel</h1>
-            <span className="subtitle">SOC Co-Pilot</span>
-          </div>
-        </div>
+    <div className="cc-shell">
+      <Header
+        analysisData={analysisData}
+        analyzing={analyzing}
+        analyzeType={analyzeType}
+        timezone={timezone}
+        tzOptions={TZ_OPTIONS}
+        onTimezoneChange={setTimezone}
+        onAnalyze={runAnalysis}
+      />
 
-        <div className="header-center">
-          {analysisData && (
-            <>
-              <div className="header-pill">
-                <span className="pill-label">Case</span>
-                {analysisData.case_id}
-              </div>
-              <div className="header-pill">
-                <span className="pill-label">FW</span>
-                {analysisData.correlation_summary?.total_firewall_events || 0}
-              </div>
-              <div className="header-pill">
-                <span className="pill-label">Auth</span>
-                {analysisData.correlation_summary?.total_auth_events || 0}
-              </div>
-              <div className="header-pill">
-                <span className="pill-label">IPs</span>
-                {analysisData.correlation_summary?.correlated_ips || 0}
-              </div>
-            </>
-          )}
-        </div>
+      <IntelFeed
+        cases={caseHistory}
+        activeCaseId={caseId}
+        timezone={timezone}
+        onLoadCase={loadCase}
+      />
 
-        <div className="header-right">
-          <button
-            className={`btn btn-primary ${analyzing && analyzeType === '/analyze' ? 'btn-analyzing' : ''}`}
-            onClick={() => runAnalysis('/analyze')}
-            disabled={analyzing}
-          >
-            {analyzing && analyzeType === '/analyze' ? '⟳ Analyzing...' : '▶ Analyze'}
-          </button>
-          <button
-            className={`btn ${analyzing && analyzeType === '/analyze-raw' ? 'btn-analyzing' : ''}`}
-            onClick={() => runAnalysis('/analyze-raw')}
-            disabled={analyzing}
-          >
-            {analyzing && analyzeType === '/analyze-raw' ? '⟳ Parsing...' : '📄 Analyze Raw'}
-          </button>
-        </div>
-      </header>
+      <ThreatWorkspace
+        threats={threats}
+        activeThreat={activeThreat}
+        selectedIdx={selectedThreatIdx}
+        onSelectThreat={setSelectedThreatIdx}
+        analyzing={analyzing}
+        analyzeType={analyzeType}
+        caseId={caseId}
+        timezone={timezone}
+      />
 
-      {/* ── Sidebar: Case History + Chat ── */}
-      <aside className="sidebar">
-        <CaseHistory cases={caseHistory} onLoadCase={loadCase} />
-        <ChatPanel ref={chatRef} />
-      </aside>
+      <EvidencePanel
+        evidence={analysisData?.evidence_table || []}
+        alerts={activeThreat?.triggered_alerts || []}
+        threats={threats}
+        correlatedIps={threats.map(t => t.ip)}
+        timezone={timezone}
+      />
 
-      {/* ── Workspace ────────────────────── */}
-      <main className="workspace">
-        {analyzing ? (
-          <LoadingSkeleton />
-        ) : !analysisData ? (
-          <div className="empty-state" style={{ marginTop: 80 }}>
-            <div className="empty-state-icon">🔍</div>
-            <div className="empty-state-text">
-              Click <strong>Analyze</strong> or <strong>Analyze Raw</strong> to start an investigation
-            </div>
-          </div>
-        ) : (
-          <>
-            <ThreatSelector
-              threats={threats}
-              selectedIndex={selectedThreatIndex}
-              onSelect={setSelectedThreatIndex}
-            />
-            <MathBox threat={activeThreat} caseId={caseId} />
-            <KillChainTimeline killChain={activeThreat?.kill_chain} />
-            <AttackTimeline
-              timeline={activeThreat?.attack_timeline}
-              ip={activeThreat?.ip}
-            />
-            <EvidenceTable
-              evidence={analysisData.evidence_table}
-              correlatedIps={correlatedIps}
-            />
-            <SOARButton threats={threats} />
-          </>
-        )}
-      </main>
-    </div>
-  );
-}
+      {/* Chat FAB */}
+      {!chatOpen && (
+        <button className="chat-fab" onClick={() => setChatOpen(true)} title="SOC Co-Pilot (C)">
+          💬
+        </button>
+      )}
 
-function LoadingSkeleton() {
-  return (
-    <div className="loading-overlay">
-      <div className="skeleton skeleton-line" style={{ width: '40%' }} />
-      <div className="skeleton skeleton-block" />
-      <div className="skeleton skeleton-line" style={{ width: '70%' }} />
-      <div className="skeleton skeleton-block" />
-      <div className="skeleton skeleton-line" style={{ width: '55%' }} />
-      <div className="skeleton skeleton-block" />
+      <ChatDrawer
+        ref={chatRef}
+        open={chatOpen}
+        onClose={() => setChatOpen(false)}
+        timezone={timezone}
+      />
+
+      {shortcutsOpen && <ShortcutsModal onClose={() => setShortcutsOpen(false)} />}
     </div>
   );
 }
