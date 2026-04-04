@@ -39,11 +39,11 @@ MITRE_MAPPING = {
         "weight": KILL_CHAIN_WEIGHTS["Delivery"],
     },
     "firewall_deny": {
-        "technique_id": "T1190",
-        "technique_name": "Exploit Public-Facing Application",
-        "tactic": "Initial Access",
-        "kill_chain_stage": "Delivery",
-        "weight": KILL_CHAIN_WEIGHTS["Delivery"],
+        "technique_id": "T1046",
+        "technique_name": "Network Service Discovery",
+        "tactic": "Discovery",
+        "kill_chain_stage": "Reconnaissance",
+        "weight": KILL_CHAIN_WEIGHTS["Reconnaissance"],
     },
     "login_success_after_failures": {
         "technique_id": "T1078",
@@ -59,6 +59,20 @@ MITRE_MAPPING = {
         "kill_chain_stage": "Actions on Objectives",
         "weight": KILL_CHAIN_WEIGHTS["Actions on Objectives"],
     },
+    "password_spraying": {
+        "technique_id": "T1110.003",
+        "technique_name": "Brute Force: Password Spraying",
+        "tactic": "Credential Access",
+        "kill_chain_stage": "Delivery",
+        "weight": KILL_CHAIN_WEIGHTS["Delivery"],
+    },
+    "unknown_heuristic": {
+        "technique_id": "T1unknown",
+        "technique_name": "Heuristic/Unknown Behavior",
+        "tactic": "Unknown",
+        "kill_chain_stage": "Reconnaissance",
+        "weight": KILL_CHAIN_WEIGHTS["Reconnaissance"],
+    },
 }
 
 # ──────────────────────────────────────────────────────────────
@@ -67,6 +81,8 @@ MITRE_MAPPING = {
 
 KNOWN_GOOD_IPS = ["10.0.0.50", "192.168.1.100", "10.0.0.1", "192.168.1.1"]
 STANDARD_HOURS = (9, 18)  # 09:00 - 18:00
+TOR_GEOLOCATIONS = ["Tor Exit Node", "Unknown", "Anonymous Proxy"]
+OFFICE_GEOLOCATIONS = ["Office", "HQ", "Corporate", "Internal"]
 
 
 # ──────────────────────────────────────────────────────────────
@@ -124,17 +140,19 @@ def _severity_label(score: float) -> str:
     return "Informational"
 
 
-def baseline_check(event: dict) -> dict:
+def baseline_check(event: dict, correlated_ip: dict | None = None) -> dict:
     """
-    Check if an event is a Likely False Positive.
+    Three-Gate False Positive Triage.
 
-    Rules:
-    - If src_ip is in KNOWN_GOOD_IPS → likely FP.
-    - If activity occurred during STANDARD_HOURS → less suspicious.
-    - Combines both signals.
+    Gate 1 — IP Reputation (Known-Good Whitelist)
+    Gate 2 — User & Time Baseline
+    Gate 3 — Cross-Telemetry Validation
+
+    Decision: Only FP if known-good IP AND no threat signals AND single telemetry source.
+    Any strong threat signal (Tor, multi-user targeting, off-hours + cross-telemetry) → NOT FP.
 
     Returns:
-        { is_false_positive: bool, reason: str }
+        Dict with is_false_positive, reason, gate_results, fp_signals, threat_signals, confidence.
     """
     ip = ""
     if "src_endpoint" in event:
@@ -142,31 +160,130 @@ def baseline_check(event: dict) -> dict:
     elif "src_ip" in event:
         ip = event["src_ip"]
 
+    fp_signals = []
+    threat_signals = []
+
+    # ── Gate 1: IP Reputation ─────────────────────────────────
+    is_known_good = ip in KNOWN_GOOD_IPS
+    gate1 = {"ip": ip, "is_known_good": is_known_good}
+    if is_known_good:
+        fp_signals.append(f"IP {ip} is in Known Good list")
+
+    # ── Gate 2: User & Time Baseline ──────────────────────────
     timestamp_str = event.get("time", event.get("timestamp", ""))
-    is_known_good_ip = ip in KNOWN_GOOD_IPS
     is_standard_hours = False
+    is_off_hours = False
 
     if timestamp_str:
         try:
             ts = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
             is_standard_hours = STANDARD_HOURS[0] <= ts.hour < STANDARD_HOURS[1]
+            is_off_hours = not is_standard_hours
         except (ValueError, TypeError):
             pass
 
-    reasons = []
-    if is_known_good_ip:
-        reasons.append(f"IP {ip} is in Known Good list")
     if is_standard_hours:
-        reasons.append("Activity occurred during standard business hours (09:00–18:00)")
+        fp_signals.append("Activity during standard business hours (09:00–18:00)")
+    if is_off_hours:
+        threat_signals.append("Activity outside business hours")
 
-    is_fp = is_known_good_ip  # Known good IP is the strongest signal
+    # Geo-location check from correlated auth evidence
+    geo_locations = set()
+    if correlated_ip:
+        for e in correlated_ip.get("auth_evidence", []):
+            geo = e.get("geo_location", "")
+            if geo:
+                geo_locations.add(geo)
+
+    is_tor = any(g in TOR_GEOLOCATIONS for g in geo_locations)
+    is_office = any(g in OFFICE_GEOLOCATIONS for g in geo_locations)
+
+    if is_tor:
+        threat_signals.append(f"Geo-location from Tor/Unknown: {geo_locations}")
+    if is_office:
+        fp_signals.append(f"Geo-location from Office/Corporate: {geo_locations}")
+
+    gate2 = {
+        "is_standard_hours": is_standard_hours,
+        "is_off_hours": is_off_hours,
+        "geo_locations": list(geo_locations),
+        "is_tor": is_tor,
+        "is_office": is_office,
+    }
+
+    # ── Gate 3: Cross-Telemetry Validation ────────────────────
+    in_firewall = False
+    in_auth = False
+    multi_user_targeted = False
+    unique_users_attacked = 0
+
+    if correlated_ip:
+        in_firewall = len(correlated_ip.get("firewall_evidence", [])) > 0
+        in_auth = len(correlated_ip.get("auth_evidence", [])) > 0
+
+        unique_users_attacked = len(set(
+            e.get("user_id") for e in correlated_ip.get("auth_evidence", [])
+            if e.get("action") == "login_failed" and e.get("user_id")
+        ))
+        multi_user_targeted = unique_users_attacked >= 2
+
+    cross_telemetry = in_firewall and in_auth
+    single_source = not cross_telemetry
+
+    if cross_telemetry:
+        threat_signals.append("IP appears in BOTH firewall AND auth logs — confirmed cross-telemetry")
+    else:
+        fp_signals.append("IP appears in only one log source — weak signal")
+
+    if multi_user_targeted:
+        threat_signals.append(f"Multiple users targeted ({unique_users_attacked}) — spray attack pattern")
+
+    gate3 = {
+        "in_firewall": in_firewall,
+        "in_auth": in_auth,
+        "cross_telemetry": cross_telemetry,
+        "unique_users_attacked": unique_users_attacked,
+        "multi_user_targeted": multi_user_targeted,
+    }
+
+    # ── Decision Logic ────────────────────────────────────────
+    # Strong threat signals override everything
+    has_strong_threat = is_tor or multi_user_targeted or (is_off_hours and cross_telemetry)
+
+    if has_strong_threat:
+        is_fp = False
+        confidence = "High"
+    elif is_known_good and not threat_signals and single_source:
+        is_fp = True
+        confidence = "High"
+    elif is_known_good and not threat_signals:
+        is_fp = True
+        confidence = "Medium"
+    elif threat_signals:
+        is_fp = False
+        confidence = "Medium"
+    else:
+        is_fp = False
+        confidence = "Low"
+
+    if is_fp:
+        reason = "False Positive: " + "; ".join(fp_signals)
+    elif threat_signals:
+        reason = "Confirmed Threat: " + "; ".join(threat_signals)
+    else:
+        reason = "No baseline match — activity is suspicious"
 
     return {
         "is_false_positive": is_fp,
-        "reason": "; ".join(reasons) if reasons else "No baseline match — activity is suspicious",
-        "ip": ip,
-        "is_known_good_ip": is_known_good_ip,
-        "is_standard_hours": is_standard_hours,
+        "reason": reason,
+        "gate_results": {
+            "gate1_ip_reputation": gate1,
+            "gate2_user_baseline": gate2,
+            "gate3_cross_telemetry": gate3,
+        },
+        "fp_signals": fp_signals,
+        "threat_signals": threat_signals,
+        "confidence": confidence,
     }
 
 
@@ -238,6 +355,18 @@ def correlate_logs(firewall_events: list[dict], auth_events: list[dict]) -> list
         if compromise_check["exceeded"]:
             event_types.add("login_success_after_failures")
 
+        # Password spraying: multiple different users targeted from same IP
+        unique_users_attacked = len(set(
+            e.get("user_id") for e in a_events
+            if e.get("action") == "login_failed"
+        ))
+        if unique_users_attacked >= 2:
+            event_types.add("password_spraying")
+
+        # Zero-day fallback: suspicious activity but no rule matched
+        if not event_types and (deny_count > 0 or fail_count > 0):
+            event_types.add("unknown_heuristic")
+
         # ── Full alert classification ────────────────────────
         triggered_alerts = classify_alerts(
             deny_count=deny_count,
@@ -263,13 +392,129 @@ def correlate_logs(firewall_events: list[dict], auth_events: list[dict]) -> list
     return correlated
 
 
+def build_attack_timeline(correlated_ip: dict, mitre_techniques: list) -> list[dict]:
+    """
+    Reconstruct the attack timeline for a correlated IP.
+
+    Collects ALL events from both firewall and auth evidence,
+    sorts by timestamp, and annotates each with MITRE context,
+    kill chain stage, significance, and pivot point detection.
+
+    Returns:
+        Sorted list of timeline entries — the attack story.
+    """
+    timeline = []
+    ip = correlated_ip.get("ip", "")
+
+    # Build a quick lookup: event action → MITRE mapping
+    action_to_mitre = {
+        "deny": MITRE_MAPPING.get("firewall_deny"),
+        "allow": None,  # allow is not a threat indicator by itself
+        "login_failed": MITRE_MAPPING.get("login_failed"),
+        "login_success": MITRE_MAPPING.get("login_success_after_failures"),
+    }
+
+    # Track state for pivot detection
+    failure_seen = False
+    first_success_after_fail = False
+    large_transfer_seen = False
+
+    # Collect firewall events
+    for e in correlated_ip.get("firewall_evidence", []):
+        action = e.get("action", "")
+        mitre = action_to_mitre.get(action)
+        bytes_sent = e.get("bytes_sent", 0)
+
+        # Determine significance
+        if action == "deny":
+            significance = f"Blocked connection to port {e.get('dst_port')} — attacker probing network"
+            failure_seen = True
+        elif action == "allow" and bytes_sent > 50000:
+            significance = f"Large outbound transfer ({bytes_sent} bytes) — potential data exfiltration"
+            mitre = MITRE_MAPPING.get("data_exfiltration")
+        elif action == "allow":
+            significance = f"Allowed connection to port {e.get('dst_port')}"
+        else:
+            significance = f"Firewall event: {action}"
+
+        # Pivot point: first large transfer
+        is_pivot = False
+        if action == "allow" and bytes_sent > 50000 and not large_transfer_seen:
+            is_pivot = True
+            large_transfer_seen = True
+
+        timeline.append({
+            "timestamp": e.get("timestamp", ""),
+            "event_type": action,
+            "source": "Firewall",
+            "mitre_technique": {
+                "id": mitre["technique_id"],
+                "name": mitre["technique_name"],
+            } if mitre else None,
+            "kill_chain_stage": mitre["kill_chain_stage"] if mitre else None,
+            "significance": significance,
+            "is_pivot_point": is_pivot,
+            "raw_details": {
+                "dst_port": e.get("dst_port"),
+                "protocol": e.get("protocol"),
+                "bytes_sent": bytes_sent,
+            },
+        })
+
+    # Collect auth events
+    for e in correlated_ip.get("auth_evidence", []):
+        action = e.get("action", "")
+        mitre = action_to_mitre.get(action)
+        user = e.get("user_id", "unknown")
+
+        if action == "login_failed":
+            significance = f"Failed login attempt as '{user}' — credential attack in progress"
+            failure_seen = True
+        elif action == "login_success" and failure_seen:
+            significance = f"Successful login as '{user}' AFTER previous failures — account compromised"
+            mitre = MITRE_MAPPING.get("login_success_after_failures")
+        elif action == "login_success":
+            significance = f"Successful login as '{user}'"
+        else:
+            significance = f"Auth event: {action} for user '{user}'"
+
+        # Pivot point: first success after failures
+        is_pivot = False
+        if action == "login_success" and failure_seen and not first_success_after_fail:
+            is_pivot = True
+            first_success_after_fail = True
+
+        timeline.append({
+            "timestamp": e.get("timestamp", ""),
+            "event_type": action,
+            "source": "Auth",
+            "mitre_technique": {
+                "id": mitre["technique_id"],
+                "name": mitre["technique_name"],
+            } if mitre else None,
+            "kill_chain_stage": mitre["kill_chain_stage"] if mitre else None,
+            "significance": significance,
+            "is_pivot_point": is_pivot,
+            "raw_details": {
+                "user_id": user,
+                "method": e.get("method"),
+                "geo_location": e.get("geo_location"),
+            },
+        })
+
+    # Sort by timestamp ascending — this IS the attack story
+    timeline.sort(key=lambda x: x.get("timestamp", ""))
+
+    return timeline
+
+
 def analyze_threat(correlated_ip: dict, asset_value: int = 3) -> dict:
     """
     Full deterministic threat analysis for a single correlated IP.
 
     Returns:
         Complete analysis with risk score, MITRE mappings, kill chain,
-        false positive check, and evidence.
+        false positive check, attack timeline, and evidence.
     """
     event_types = correlated_ip.get("event_types", [])
     ip = correlated_ip["ip"]
@@ -297,8 +542,11 @@ def analyze_threat(correlated_ip: dict, asset_value: int = 3) -> dict:
     # Calculate risk score
     risk = calculate_risk_score(max_weight, confidence, asset_value)
 
-    # Run false positive check on the IP
-    fp_check = baseline_check({"src_ip": ip, "time": correlated_ip["firewall_evidence"][0].get("timestamp", "")})
+    # Run Three-Gate false positive check with cross-telemetry context
+    fp_check = baseline_check(
+        {"src_ip": ip, "time": correlated_ip["firewall_evidence"][0].get("timestamp", "")},
+        correlated_ip=correlated_ip,
+    )
 
     # Build ordered kill chain
     ordered_chain = []
@@ -314,22 +562,25 @@ def analyze_threat(correlated_ip: dict, asset_value: int = 3) -> dict:
             "techniques": techniques_in_stage,
         })
 
+    # Build attack timeline
+    attack_timeline = build_attack_timeline(correlated_ip, mitre_techniques)
+
     return {
         "ip": ip,
         "risk_score": risk,
         "mitre_techniques": mitre_techniques,
         "kill_chain": ordered_chain,
         "false_positive_analysis": fp_check,
+        "attack_timeline": attack_timeline,
         "evidence_summary": {
             "firewall_deny_count": deny_count,
             "auth_fail_count": fail_count,
             "auth_success_count": correlated_ip.get("auth_success_count", 0),
             "total_evidence_points": total_evidence,
             "confidence": confidence,
-            # NEW
             "distinct_ports_scanned": correlated_ip.get("distinct_ports_scanned", 0),
             "total_bytes_transferred": correlated_ip.get("total_bytes_transferred", 0),
         },
-        # NEW: full threshold-based alert classification
+        # Full threshold-based alert classification
         "triggered_alerts": correlated_ip.get("triggered_alerts", []),
     }

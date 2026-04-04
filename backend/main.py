@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 load_dotenv()
 
 from log_parser import LogParser
-from security_tools import correlate_logs, analyze_threat
+from security_tools import correlate_logs, analyze_threat, build_attack_timeline
 from copilot import narrate_investigation, chat as copilot_chat, nl_search
 from thresholds import get_all_thresholds, SENSITIVITY_PROFILES, ACTIVE_PROFILE
 
