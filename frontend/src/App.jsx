@@ -27,6 +27,22 @@ export default function App() {
     setAnalyzing(false);
   };
 
+  const runRawAnalysis = async () => {
+    setAnalyzing(true);
+    try {
+      const res = await fetch(`${API}/analyze-raw`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ asset_value: 3 }),
+      });
+      const data = await res.json();
+      setAnalysisData(data);
+    } catch {
+      console.error('Failed to reach backend.');
+    }
+    setAnalyzing(false);
+  };
+
   // Get the top threat for MathBox + KillChain
   const topThreat = analysisData?.threats?.length
     ? analysisData.threats.reduce((a, b) =>
@@ -53,6 +69,20 @@ export default function App() {
             <>⚡ Analyze Logs</>
           )}
         </button>
+
+        <button
+            id="analyze-raw-btn"
+            className="app-header__analyze-btn"
+            onClick={runRawAnalysis}
+            disabled={analyzing}
+            style={{ background: 'var(--accent-orange, #f59e0b)', marginLeft: '0.5rem' }}
+          >
+            {analyzing ? (
+              <><span className="loader"></span> Parsing...</>
+            ) : (
+              <>📄 Analyze Raw Logs</>
+            )}
+          </button>
       </header>
 
       {/* Info bar when analysis is loaded */}

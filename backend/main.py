@@ -29,6 +29,8 @@ BASE_DIR = Path(__file__).parent
 DATA_DIR = BASE_DIR / "data"
 FIREWALL_LOG = DATA_DIR / "firewall_logs.json"
 AUTH_LOG = DATA_DIR / "auth_logs.json"
+# Add this line right after AUTH_LOG definition
+RAW_LOG = DATA_DIR / "raw_mixed.log"
 
 # ── App setup ────────────────────────────────────────────────
 app = FastAPI(
@@ -228,3 +230,84 @@ async def remediate(request: Request):
         "details": entry,
         "total_blocked": len(blocked_ips),
     }
+
+@app.post("/analyze-raw")
+async def analyze_raw(request: Request):
+    """
+    Analyze unstructured raw syslog/text logs.
+    Demonstrates the parser can handle unstructured input,
+    parse it to structured events, then run the full pipeline.
+    """
+    global last_analysis
+
+    body = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    asset_value = body.get("asset_value", 3)
+
+    # Ingest raw unstructured log — auto-detected as .log file
+    raw_events = parser.ingest(str(RAW_LOG))
+
+    # Split parsed events by their detected log type
+    fw_raw = [e for e in raw_events if e.get("_log_type") == "firewall"]
+    auth_raw = [e for e in raw_events if e.get("_log_type") == "auth"]
+
+    # From here the pipeline is IDENTICAL to /analyze
+    fw_ocsf = [parser.to_ocsf(e, "firewall") for e in fw_raw]
+    auth_ocsf = [parser.to_ocsf(e, "auth") for e in auth_raw]
+
+    correlated = correlate_logs(fw_raw, auth_raw)
+
+    threat_analyses = []
+    for ip_data in correlated:
+        analysis = analyze_threat(ip_data, asset_value)
+        threat_analyses.append(analysis)
+
+    evidence_table = []
+    for e in fw_raw:
+        evidence_table.append({
+            "source": "Firewall (Raw Syslog)",
+            "id": e.get("id"),
+            "timestamp": e.get("timestamp"),
+            "src_ip": e.get("src_ip"),
+            "event": e.get("action"),
+            "details": f"Port {e.get('dst_port')} ({e.get('protocol')}) → {e.get('dst_ip')} | {e.get('bytes_sent', 0)} bytes | RAW: {e.get('_raw_line', '')[:60]}",
+        })
+    for e in auth_raw:
+        evidence_table.append({
+            "source": "Auth (Raw Syslog)",
+            "id": e.get("id"),
+            "timestamp": e.get("timestamp"),
+            "src_ip": e.get("src_ip"),
+            "event": e.get("action"),
+            "details": f"User: {e.get('user_id')} | Method: {e.get('method')} | RAW: {e.get('_raw_line', '')[:60]}",
+        })
+
+    evidence_table.sort(key=lambda x: x.get("timestamp", ""))
+
+    ai_summary = ""
+    if threat_analyses:
+        top_threat = max(threat_analyses, key=lambda t: t["risk_score"]["score"])
+        ai_summary = narrate_investigation(top_threat)
+
+    case = {
+        "case_id": f"CASE-RAW-{uuid.uuid4().hex[:8].upper()}",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "source_type": "unstructured_syslog",
+        "parse_stats": {
+            "total_raw_lines": len(raw_events),
+            "firewall_parsed": len(fw_raw),
+            "auth_parsed": len(auth_raw),
+        },
+        "threats": threat_analyses,
+        "evidence_table": evidence_table,
+        "ocsf_events": {"firewall": fw_ocsf, "auth": auth_ocsf},
+        "correlation_summary": {
+            "total_firewall_events": len(fw_raw),
+            "total_auth_events": len(auth_raw),
+            "correlated_ips": len(correlated),
+            "ips": [c["ip"] for c in correlated],
+        },
+        "ai_summary": ai_summary,
+    }
+
+    last_analysis = case
+    return case
