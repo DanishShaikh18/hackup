@@ -326,5 +326,10 @@ def analyze_threat(correlated_ip: dict, asset_value: int = 3) -> dict:
             "auth_success_count": correlated_ip.get("auth_success_count", 0),
             "total_evidence_points": total_evidence,
             "confidence": confidence,
+            # NEW
+            "distinct_ports_scanned": correlated_ip.get("distinct_ports_scanned", 0),
+            "total_bytes_transferred": correlated_ip.get("total_bytes_transferred", 0),
         },
+        # NEW: full threshold-based alert classification
+        "triggered_alerts": correlated_ip.get("triggered_alerts", []),
     }
