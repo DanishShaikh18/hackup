@@ -7,6 +7,9 @@ Endpoints:
     POST /chat       — SOC Co-Pilot chat interface
     POST /remediate  — SOAR simulation (block IP)
     GET  /           — Health check
+    GET  /cases      — List past investigations
+    GET  /cases/{id} — Retrieve past investigation
+    POST /multi-agent/{case_id}/{ip} — Multi-agent analysis
 """
 
 import os
@@ -22,7 +25,7 @@ load_dotenv()
 
 from log_parser import LogParser
 from security_tools import correlate_logs, analyze_threat, build_attack_timeline
-from copilot import narrate_investigation, chat as copilot_chat, nl_search
+from copilot import narrate_investigation, chat as copilot_chat, nl_search, multi_agent_analyze
 from thresholds import get_all_thresholds, SENSITIVITY_PROFILES, ACTIVE_PROFILE
 
 # ── Data paths ───────────────────────────────────────────────
@@ -30,7 +33,6 @@ BASE_DIR = Path(__file__).parent
 DATA_DIR = BASE_DIR / "data"
 FIREWALL_LOG = DATA_DIR / "firewall_logs.json"
 AUTH_LOG = DATA_DIR / "auth_logs.json"
-# Add this line right after AUTH_LOG definition
 RAW_LOG = DATA_DIR / "raw_mixed.log"
 
 # ── App setup ────────────────────────────────────────────────
@@ -54,6 +56,27 @@ parser = LogParser()
 # ── In-memory state ──────────────────────────────────────────
 blocked_ips: list[dict] = []
 last_analysis: dict | None = None
+case_store: dict[str, dict] = {}  # case_id → full analysis result
+case_history: list[dict] = []     # lightweight index for listing
+
+
+def _store_case(case: dict):
+    """Persist case to in-memory store and history index."""
+    global last_analysis
+    case_store[case["case_id"]] = case
+    case_history.append({
+        "case_id": case["case_id"],
+        "timestamp": case["timestamp"],
+        "threat_count": len(case["threats"]),
+        "top_severity": max(
+            (t["risk_score"]["severity"] for t in case["threats"]),
+            key=lambda s: {"Critical": 4, "High": 3, "Medium": 2, "Low": 1, "Informational": 0}.get(s, 0),
+            default="Unknown"
+        ) if case["threats"] else "Unknown",
+        "correlated_ips": case["correlation_summary"]["ips"],
+        "source_type": case.get("source_type", "structured_json"),
+    })
+    last_analysis = case
 
 
 # ── Health Check ─────────────────────────────────────────────
@@ -79,8 +102,6 @@ async def analyze(request: Request):
     3. Run deterministic analysis (MITRE mapping, risk score, baseline check)
     4. Generate AI narration (grounded by the deterministic results)
     """
-    global last_analysis
-
     body = await request.json() if request.headers.get("content-type") == "application/json" else {}
     asset_value = body.get("asset_value", 3)
 
@@ -150,7 +171,7 @@ async def analyze(request: Request):
         "ai_summary": ai_summary,
     }
 
-    last_analysis = case
+    _store_case(case)
     return case
 
 
@@ -188,10 +209,11 @@ async def chat_endpoint(request: Request):
     # Regular chat with investigation context
     context = None
     if last_analysis:
-        # Pass a condensed version to avoid token overload
         context = {
             "threats": last_analysis.get("threats", []),
             "correlation_summary": last_analysis.get("correlation_summary", {}),
+            "total_cases_investigated": len(case_history),
+            "current_case_id": last_analysis.get("case_id", ""),
         }
 
     result = copilot_chat(message, context)
@@ -239,8 +261,6 @@ async def analyze_raw(request: Request):
     Demonstrates the parser can handle unstructured input,
     parse it to structured events, then run the full pipeline.
     """
-    global last_analysis
-
     body = await request.json() if request.headers.get("content-type") == "application/json" else {}
     asset_value = body.get("asset_value", 3)
 
@@ -310,7 +330,7 @@ async def analyze_raw(request: Request):
         "ai_summary": ai_summary,
     }
 
-    last_analysis = case
+    _store_case(case)
     return case
 
 @app.get("/thresholds")
@@ -328,4 +348,47 @@ async def thresholds_info():
             "Microsoft Security Baseline, and statistical mean+sigma analysis. "
             "Change ACTIVE_PROFILE in thresholds.py to tune sensitivity."
         ),
+    }
+
+
+# ── Case Persistence ────────────────────────────────────────
+
+@app.get("/cases")
+async def list_cases():
+    """Return lightweight case history index."""
+    return {
+        "total": len(case_history),
+        "cases": list(reversed(case_history))  # newest first
+    }
+
+@app.get("/cases/{case_id}")
+async def get_case(case_id: str):
+    """Retrieve a full past investigation by case ID."""
+    case = case_store.get(case_id)
+    if not case:
+        return {"error": f"Case {case_id} not found"}
+    return case
+
+
+# ── Multi-Agent SOC Collaboration ────────────────────────────
+
+@app.post("/multi-agent/{case_id}/{ip}")
+async def multi_agent_endpoint(case_id: str, ip: str):
+    """
+    Run multi-agent analysis on a specific threat from a specific case.
+    Frontend calls this when analyst wants deeper collaborative analysis.
+    """
+    case = case_store.get(case_id)
+    if not case:
+        return {"error": "Case not found. Run analysis first."}
+
+    threat = next((t for t in case.get("threats", []) if t["ip"] == ip), None)
+    if not threat:
+        return {"error": f"IP {ip} not found in case {case_id}"}
+
+    result = multi_agent_analyze(threat)
+    return {
+        "case_id": case_id,
+        "ip": ip,
+        "multi_agent_report": result,
     }

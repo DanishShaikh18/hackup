@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
+
+const API = 'http://localhost:8000';
 
 function severityColor(severity) {
   const s = (severity || '').toLowerCase();
@@ -28,7 +30,17 @@ function alertCategoryIcon(cat) {
   return '⚠️';
 }
 
-export default function MathBox({ threat }) {
+const AGENT_ICONS = {
+  network_analyst: '🌐',
+  identity_analyst: '🔑',
+  threat_intel: '🎯',
+};
+
+export default function MathBox({ threat, caseId }) {
+  const [agentReport, setAgentReport] = useState(null);
+  const [agentLoading, setAgentLoading] = useState(false);
+  const [agentOpen, setAgentOpen] = useState(false);
+
   if (!threat) {
     return (
       <div className="panel">
@@ -54,6 +66,21 @@ export default function MathBox({ threat }) {
   const pct = Math.min(score / 10, 1);
   const dashOffset = circumference * (1 - pct);
 
+  const runMultiAgent = async () => {
+    if (!caseId || !threat.ip) return;
+    setAgentLoading(true);
+    setAgentOpen(true);
+    try {
+      const res = await fetch(`${API}/multi-agent/${caseId}/${threat.ip}`, { method: 'POST' });
+      const data = await res.json();
+      setAgentReport(data.multi_agent_report || null);
+    } catch {
+      setAgentReport(null);
+    } finally {
+      setAgentLoading(false);
+    }
+  };
+
   return (
     <div className="panel">
       <div className="panel-header">
@@ -63,6 +90,16 @@ export default function MathBox({ threat }) {
             {threat.ip}
           </span>
         </span>
+        {caseId && (
+          <button
+            className="btn"
+            style={{ fontSize: 11, padding: '4px 10px' }}
+            onClick={runMultiAgent}
+            disabled={agentLoading}
+          >
+            {agentLoading ? '⟳ Agents thinking...' : '🤖 Multi-Agent Analysis'}
+          </button>
+        )}
       </div>
       <div className="panel-body">
         <div className="mathbox">
@@ -127,6 +164,102 @@ export default function MathBox({ threat }) {
                 <span className="alert-row-action">{a.recommended_action}</span>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Multi-Agent Analysis Panel */}
+        {agentOpen && (
+          <div style={{
+            marginTop: 12,
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-card)',
+            overflow: 'hidden',
+          }}>
+            <div style={{
+              padding: '8px 12px',
+              background: 'var(--bg-elevated)',
+              borderBottom: '1px solid var(--border-subtle)',
+              fontSize: 11,
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              color: 'var(--text-secondary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}>
+              <span>🤖 Multi-Agent SOC Report</span>
+              <button
+                onClick={() => setAgentOpen(false)}
+                style={{
+                  fontSize: 14,
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  background: 'none',
+                  border: 'none',
+                  padding: '0 4px',
+                }}
+              >✕</button>
+            </div>
+
+            {agentLoading ? (
+              <div style={{ padding: 16 }}>
+                <div className="skeleton skeleton-line" />
+                <div className="skeleton skeleton-line" />
+                <div className="skeleton skeleton-line" style={{ width: '60%' }} />
+              </div>
+            ) : agentReport ? (
+              <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {Object.entries(agentReport.agents || {}).map(([key, agent]) => (
+                  <div key={key} style={{
+                    padding: '8px 10px',
+                    background: 'var(--bg-base)',
+                    borderRadius: 'var(--radius-badge)',
+                    border: '1px solid var(--border-subtle)',
+                  }}>
+                    <div style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      textTransform: 'uppercase',
+                      color: 'var(--accent-blue)',
+                      marginBottom: 4,
+                      letterSpacing: '0.04em',
+                    }}>
+                      {AGENT_ICONS[key] || '🤖'} {agent.name}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                      {agent.finding}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Coordinator */}
+                <div style={{
+                  padding: '10px 12px',
+                  background: 'rgba(59, 130, 246, 0.06)',
+                  borderRadius: 'var(--radius-badge)',
+                  border: '1px solid rgba(59, 130, 246, 0.15)',
+                }}>
+                  <div style={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                    color: 'var(--pivot-gold)',
+                    marginBottom: 4,
+                    letterSpacing: '0.04em',
+                  }}>
+                    ⚡ Coordinator Synthesis
+                  </div>
+                  <div style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.5, fontWeight: 500 }}>
+                    {agentReport.coordinator_synthesis}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div style={{ padding: 16, fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
+                Multi-agent analysis unavailable. Check backend connection.
+              </div>
+            )}
           </div>
         )}
       </div>

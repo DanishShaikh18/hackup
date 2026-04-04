@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef } from 'react';
 import './App.css';
 import ChatPanel from './components/ChatPanel';
+import CaseHistory from './components/CaseHistory';
 import ThreatSelector from './components/ThreatSelector';
 import MathBox from './components/MathBox';
 import KillChainTimeline from './components/KillChainTimeline';
@@ -15,7 +16,16 @@ export default function App() {
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeType, setAnalyzeType] = useState(null);
   const [selectedThreatIndex, setSelectedThreatIndex] = useState(0);
+  const [caseHistory, setCaseHistory] = useState([]);
   const chatRef = useRef(null);
+
+  const fetchCaseHistory = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/cases`);
+      const data = await res.json();
+      setCaseHistory(data.cases || []);
+    } catch { /* ignore */ }
+  }, []);
 
   const runAnalysis = useCallback(async (endpoint) => {
     setAnalyzing(true);
@@ -47,17 +57,40 @@ export default function App() {
       if (data.ai_summary && chatRef.current) {
         chatRef.current.addAiMessage(data.ai_summary);
       }
+
+      // Refresh case history
+      fetchCaseHistory();
     } catch (err) {
       console.error('Analysis failed:', err);
     } finally {
       setAnalyzing(false);
       setAnalyzeType(null);
     }
+  }, [fetchCaseHistory]);
+
+  const loadCase = useCallback(async (caseId) => {
+    try {
+      const res = await fetch(`${API}/cases/${caseId}`);
+      const data = await res.json();
+      if (data.error) return;
+      setAnalysisData(data);
+      // Auto-select highest risk
+      if (data.threats && data.threats.length > 0) {
+        let maxIdx = 0;
+        let maxScore = 0;
+        data.threats.forEach((t, i) => {
+          const s = t.risk_score?.score || 0;
+          if (s > maxScore) { maxScore = s; maxIdx = i; }
+        });
+        setSelectedThreatIndex(maxIdx);
+      }
+    } catch { /* ignore */ }
   }, []);
 
   const threats = analysisData?.threats || [];
   const activeThreat = threats[selectedThreatIndex] || null;
   const correlatedIps = threats.map(t => t.ip);
+  const caseId = analysisData?.case_id || null;
 
   return (
     <div className="app-shell">
@@ -112,8 +145,9 @@ export default function App() {
         </div>
       </header>
 
-      {/* ── Sidebar: Chat ────────────────── */}
+      {/* ── Sidebar: Case History + Chat ── */}
       <aside className="sidebar">
+        <CaseHistory cases={caseHistory} onLoadCase={loadCase} />
         <ChatPanel ref={chatRef} />
       </aside>
 
@@ -135,7 +169,7 @@ export default function App() {
               selectedIndex={selectedThreatIndex}
               onSelect={setSelectedThreatIndex}
             />
-            <MathBox threat={activeThreat} />
+            <MathBox threat={activeThreat} caseId={caseId} />
             <KillChainTimeline killChain={activeThreat?.kill_chain} />
             <AttackTimeline
               timeline={activeThreat?.attack_timeline}
