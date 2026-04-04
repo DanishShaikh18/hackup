@@ -5,6 +5,8 @@ Every score is a calculation. Every mapping is a dictionary lookup.
 """
 
 from datetime import datetime
+# Add this import at the top of security_tools.py
+from thresholds import check_threshold, classify_alerts, get_threshold, ALERT_CATEGORIES
 
 # ──────────────────────────────────────────────────────────────
 # MITRE ATT&CK Mapping
@@ -199,26 +201,51 @@ def correlate_logs(firewall_events: list[dict], auth_events: list[dict]) -> list
         fw_events = fw_by_ip[ip]
         a_events = auth_by_ip[ip]
 
-        # Determine event types for this IP
-        event_types = set()
+        # ── Observed measurements ────────────────────────────
         deny_count = sum(1 for e in fw_events if e.get("action") == "deny")
-        if deny_count >= 3:
-            event_types.add("port_scan")
-        if deny_count > 0:
-            event_types.add("firewall_deny")
-
         fail_count = sum(1 for e in a_events if e.get("action") == "login_failed")
         success_count = sum(1 for e in a_events if e.get("action") == "login_success")
-        if fail_count >= 3:
+        total_bytes = sum(e.get("bytes_sent", 0) for e in fw_events)
+        distinct_ports = len(set(e.get("dst_port", 0) for e in fw_events
+                                  if e.get("action") == "deny"))
+
+        # ── Threshold-based detection ────────────────────────
+        # All thresholds sourced from thresholds.py with full derivation
+        event_types = set()
+
+        fw_deny_check = check_threshold("firewall_deny_count", deny_count)
+        if fw_deny_check["exceeded"]:
+            event_types.add("firewall_deny")
+
+        port_scan_check = check_threshold("port_scan_distinct_ports", distinct_ports)
+        if port_scan_check["exceeded"]:
+            event_types.add("port_scan")
+
+        brute_check = check_threshold("brute_force_login_failures", fail_count)
+        if brute_check["exceeded"]:
             event_types.add("login_failed")
-        if success_count > 0 and fail_count > 0:
+
+        # Exfil only fires when access was gained (success > 0) AND bytes exceed threshold
+        exfil_check = check_threshold("exfiltration_bytes", total_bytes)
+        if success_count > 0 and exfil_check["exceeded"]:
+            event_types.add("data_exfiltration")
+
+        # Compromise: success AFTER enough failures
+        compromise_check = check_threshold(
+            "success_after_failures_min_failures",
+            fail_count if success_count > 0 else 0
+        )
+        if compromise_check["exceeded"]:
             event_types.add("login_success_after_failures")
 
-        # Check for data exfiltration (large bytes after gaining access)
-        if success_count > 0:
-            large_transfers = [e for e in fw_events if e.get("bytes_sent", 0) > 50000]
-            if large_transfers:
-                event_types.add("data_exfiltration")
+        # ── Full alert classification ────────────────────────
+        triggered_alerts = classify_alerts(
+            deny_count=deny_count,
+            fail_count=fail_count,
+            success_count=success_count,
+            bytes_transferred=total_bytes,
+            distinct_ports=distinct_ports,
+        )
 
         correlated.append({
             "ip": ip,
@@ -228,6 +255,9 @@ def correlate_logs(firewall_events: list[dict], auth_events: list[dict]) -> list
             "firewall_deny_count": deny_count,
             "auth_fail_count": fail_count,
             "auth_success_count": success_count,
+            "distinct_ports_scanned": distinct_ports,
+            "total_bytes_transferred": total_bytes,
+            "triggered_alerts": triggered_alerts,  # full classified alert list
         })
 
     return correlated
