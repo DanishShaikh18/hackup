@@ -366,10 +366,16 @@
    CENTER PANEL — THREAT WORKSPACE
    ================================================================ */
 
+/* FIX BUG 1: center panel must be an independent scroll container */
+/* BEFORE: no height constraint, grid child stretched but content clipped */
+/* AFTER: explicit height = viewport minus header, overflow-y: auto */
+/* FIXED: center panel needs paddingBottom so bottom sections aren't clipped */
 .cc-center {
   overflow-y: auto;
   overflow-x: hidden;
+  height: calc(100vh - var(--header-h));
   padding: 14px;
+  padding-bottom: 2rem;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -691,11 +697,15 @@
 .kc-connector-active { background: var(--color-accent); opacity: 0.4; }
 
 /* ── Swimlane Timeline ─────────────────────────── */
+/* FIX BUG 2+5: overflow:hidden clipped popovers and content was too short */
+/* BEFORE: overflow: hidden; — killed all tooltips */
+/* AFTER: overflow: visible; — popovers render above, inner .swimlane handles horizontal scroll */
 .swimlane-panel {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  overflow: hidden;
+  overflow: visible;
+  min-height: 300px;
 }
 
 .panel-title-bar {
@@ -723,11 +733,18 @@
   color: var(--text-secondary);
 }
 
+/* FIX BUG 2: swimlane inner container was only 90px — too short for nodes + labels */
+/* BEFORE: min-height: 90px */
+/* AFTER: min-height: 220px, overflow-y: visible so popovers are not clipped */
+/* FIXED: swimlane needs vertical breathing room so nodes/labels aren't clipped at edges */
 .swimlane {
   padding: 14px;
+  padding-top: 40px;
+  padding-bottom: 40px;
   overflow-x: auto;
+  overflow-y: visible;
   position: relative;
-  min-height: 90px;
+  min-height: 220px;
 }
 
 .swimlane-axis {
@@ -773,18 +790,17 @@
   transform: translateX(-50%);
 }
 
+/* FIXED: position:fixed escapes ALL parent overflow clipping — no ancestor can clip this */
 .event-popover {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
+  position: fixed;
+  z-index: 99999;
   transform: translateX(-50%);
-  width: 240px;
+  width: 260px;
   padding: 10px;
   background: var(--bg-input);
   border: 1px solid var(--border-focus);
   border-radius: var(--radius-md);
-  z-index: 100;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.6);
   pointer-events: none;
 }
 
@@ -807,12 +823,27 @@
   padding-top: 5px;
 }
 
-/* ── MITRE Grid ────────────────────────────────── */
+/* FIX BUG 3: MITRE section needs min-height and auto height to fit all chips */
+/* BEFORE: no min-height, inherited overflow:hidden from .swimlane-panel clipped chips */
+/* AFTER: min-height: 280px, height: auto, gap enlarged */
+
+/* Separate panel class for MITRE — does NOT inherit swimlane-panel's 300px min-height */
+.mitre-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: visible;
+  min-height: 120px;
+  height: auto;
+}
+
 .mitre-grid {
   padding: 12px 14px;
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
+  height: auto;
+  min-height: 120px;
 }
 
 .mitre-cell {
@@ -1546,11 +1577,15 @@
    MULTI-AGENT PANEL
    ================================================================ */
 
+/* FIX BUG 4: overflow:hidden was clipping long agent findings */
+/* BEFORE: overflow: hidden; — truncated multi-agent output */
+/* AFTER: overflow: visible; — full agent text renders */
 .ma-panel {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  overflow: hidden;
+  overflow: visible;
+  width: 100%;
 }
 
 .ma-agents {
@@ -1560,8 +1595,10 @@
   gap: 8px;
 }
 
+/* FIX BUG 4: agent cards need min-height to prevent collapse */
 .ma-agent-card {
-  padding: 8px 10px;
+  padding: 12px 16px;
+  min-height: 80px;
   background: var(--bg-base);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -1582,9 +1619,11 @@
   line-height: 1.5;
 }
 
+/* FIX BUG 4: coordinator synthesis needs min-height for full display */
 .ma-coordinator {
-  padding: 10px 14px;
+  padding: 12px 16px;
   margin: 0 14px 14px;
+  min-height: 100px;
   background: rgba(99,102,241,0.05);
   border: 1px solid rgba(99,102,241,0.12);
   border-radius: var(--radius-sm);

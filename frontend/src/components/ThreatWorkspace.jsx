@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react'; // FIXED: added useRef, useCallback for position:fixed tooltips
 import { sevColor, sevClass, formatTimeShort } from '../App';
 
 const API = 'http://localhost:8000';
@@ -118,6 +118,8 @@ export default function ThreatWorkspace({
   const [compareMode, setCompareMode] = useState(false);
   const [compareIdx, setCompareIdx] = useState(1);
   const [hoveredEvent, setHoveredEvent] = useState(null);
+  const [popoverCoords, setPopoverCoords] = useState(null); // FIXED: track viewport coords for position:fixed tooltip
+  const nodeRefs = useRef({}); // FIXED: refs for each timeline node
   const [maReport, setMaReport] = useState(null);
   const [maLoading, setMaLoading] = useState(false);
   const [maOpen, setMaOpen] = useState(false);
@@ -357,13 +359,22 @@ export default function ThreatWorkspace({
 
       {/* Swimlane Attack Timeline */}
       {timeline.length > 0 && (
-        <div className="swimlane-panel">
+        <div className="swimlane-panel" style={{ height: 'auto', minHeight: 280, overflow: 'visible' }}>{/* FIXED: BUG 1 — auto height, visible overflow */}
           <div className="panel-title-bar">
             <span className="panel-title">Attack Timeline</span>
             <span className="panel-badge-count">{timeline.length} events</span>
           </div>
-          <div className="swimlane" style={{ minWidth: Math.max(timeline.length * 60, 400) }}>
-            <div className="swimlane-axis" style={{ position: 'relative' }}>
+          <div className="swimlane" style={{ overflowX: 'auto', overflowY: 'visible', paddingBottom: 16 }}>{/* FIXED: BUG 1 — visible vertical overflow */}
+            <div className="swimlane-axis" style={{
+              position: 'relative',
+              display: 'flex',
+              flexDirection: 'row',
+              alignItems: 'center',
+              minWidth: Math.max(timeline.length * 60, 400),
+              paddingTop: 40,
+              paddingBottom: 40,
+              overflowY: 'visible',
+            }}>{/* FIXED: BUG 1 — flex row, min-width, vertical padding for breathing room */}
               {timeline.map((ev, i) => {
                 const left = `${timePositions[i] ?? 50}%`;
                 const isPivot = ev.is_pivot_point;
@@ -379,57 +390,71 @@ export default function ThreatWorkspace({
                 return (
                   <div
                     key={i}
+                    ref={el => { nodeRefs.current[i] = el; }}
                     className={`swimlane-node ${isPivot ? 'swimlane-diamond' : ''}`}
                     style={{
                       left,
                       borderColor: stageColor,
                       marginLeft: -11,
                     }}
-                    onMouseEnter={() => setHoveredEvent(i)}
-                    onMouseLeave={() => setHoveredEvent(null)}
+                    onMouseEnter={() => {
+                      // FIXED: BUG 2 — compute viewport coords via getBoundingClientRect for position:fixed
+                      setHoveredEvent(i);
+                      const el = nodeRefs.current[i];
+                      if (el) {
+                        const rect = el.getBoundingClientRect();
+                        setPopoverCoords({
+                          top: rect.top - 8, // 8px above the node
+                          left: rect.left + rect.width / 2,
+                        });
+                      }
+                    }}
+                    onMouseLeave={() => { setHoveredEvent(null); setPopoverCoords(null); }}
                   >
-                    {hoveredEvent === i && (
-                      <div className="event-popover" onClick={(e) => e.stopPropagation()}
-                        style={isPivot ? { transform: 'rotate(-45deg) translateX(-50%)', transformOrigin: 'bottom left' } : {}}
-                      >
-                        <div style={isPivot ? { transform: 'rotate(45deg)' } : {}}>
-                          <div className="popover-row">
-                            <span>{ev.source}</span>
-                            <strong>{ev.event_type}</strong>
-                          </div>
-                          <div className="popover-row">
-                            <span className="mono" style={{ fontSize: 10 }}>{formatTimeShort(ev.timestamp, timezone)}</span>
-                            {ev.mitre_technique && (
-                              <span className="badge badge-medium" style={{ fontSize: 9 }}>
-                                {ev.mitre_technique.id || ev.mitre_technique.technique_id}
-                              </span>
-                            )}
-                          </div>
-                          {isPivot && (
-                            <div style={{ fontSize: 9, color: 'var(--color-pivot)', fontWeight: 600, marginTop: 3 }}>
-                              ⚡ PIVOT POINT
-                            </div>
-                          )}
-                          {ev.significance && <div className="popover-sig">{ev.significance}</div>}
-                        </div>
-                      </div>
-                    )}
-                    <span className="swimlane-time-label" style={isPivot ? { transform: 'rotate(-45deg) translateX(-50%)' } : {}}>
-                      <span style={isPivot ? { transform: 'rotate(45deg)', display: 'inline-block' } : {}}>
-                        {formatTimeShort(ev.timestamp, timezone)}
-                      </span>
+                    <span className="swimlane-time-label">
+                      {formatTimeShort(ev.timestamp, timezone)}
                     </span>
                   </div>
                 );
               })}
             </div>
           </div>
+          {/* FIXED: BUG 2 — popover rendered OUTSIDE the overflow container, with position:fixed */}
+          {hoveredEvent !== null && popoverCoords && timeline[hoveredEvent] && (
+            <div
+              className="event-popover"
+              style={{
+                top: popoverCoords.top,
+                left: popoverCoords.left,
+                transform: 'translate(-50%, -100%)',
+              }}
+            >
+              <div className="popover-row">
+                <span>{timeline[hoveredEvent].source}</span>
+                <strong>{timeline[hoveredEvent].event_type}</strong>
+              </div>
+              <div className="popover-row">
+                <span className="mono" style={{ fontSize: 10 }}>{formatTimeShort(timeline[hoveredEvent].timestamp, timezone)}</span>
+                {timeline[hoveredEvent].mitre_technique && (
+                  <span className="badge badge-medium" style={{ fontSize: 9 }}>
+                    {timeline[hoveredEvent].mitre_technique.id || timeline[hoveredEvent].mitre_technique.technique_id}
+                  </span>
+                )}
+              </div>
+              {timeline[hoveredEvent].is_pivot_point && (
+                <div style={{ fontSize: 9, color: 'var(--color-pivot)', fontWeight: 600, marginTop: 3 }}>
+                  ⚡ PIVOT POINT
+                </div>
+              )}
+              {timeline[hoveredEvent].significance && <div className="popover-sig">{timeline[hoveredEvent].significance}</div>}
+            </div>
+          )}
         </div>
       )}
 
       {/* MITRE Technique Grid */}
       {mitreTechniques.length > 0 && (
-        <div className="swimlane-panel">
+        <div className="mitre-panel">
           <div className="panel-title-bar">
             <span className="panel-title">MITRE ATT&CK Mapping</span>
             <span className="panel-badge-count">{mitreTechniques.length}</span>
